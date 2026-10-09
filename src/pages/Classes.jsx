@@ -8,7 +8,7 @@ import StudentResultModal from "../features/classes/StudentResultModal";
 import {
   emptyClassForm,
   PAGE_SIZE,
-  courses,
+  courses as fallbackCourses,
   classStatuses,
 } from "../features/classes/mockClasses";
 import { useAcademicData } from "../features/academic/AcademicDataContext";
@@ -34,6 +34,7 @@ export default function Classes({ role }) {
     exams,
     studentResults,
     auditLogs,
+    courses: apiCourses,
     loadError,
     getStudentClassEligibility,
     getClassStudentCandidates,
@@ -65,6 +66,8 @@ export default function Classes({ role }) {
   const [editingActivity, setEditingActivity] = useState(null);
   const [grading, setGrading] = useState(false);
   const [message, setMessage] = useState("");
+
+  const courseOptions = apiCourses.length ? apiCourses : fallbackCourses;
 
   // The backend already applies role scope:
   // Admin -> all classes, CS -> managed classes, Teacher -> assigned classes.
@@ -185,7 +188,7 @@ export default function Classes({ role }) {
         return [
           classItem.classCode,
           classItem.name,
-          courses.find((item) => item.id === classItem.courseId)?.name ?? "",
+          courseOptions.find((item) => item.id === classItem.courseId)?.name ?? "",
           teachers,
           studentCount,
           classItem.startDate,
@@ -420,6 +423,7 @@ export default function Classes({ role }) {
         onCourse={(value) => changeFilter(setCourse, value)}
         status={status}
         onStatus={(value) => changeFilter(setStatus, value)}
+        courses={courseOptions}
         onExport={exportCsv}
         onCreate={canManageCore ? () => setEditing(null) : undefined}
         visible={visible}
@@ -533,6 +537,7 @@ export default function Classes({ role }) {
         <ClassFormModal
           classItem={editing}
           emptyForm={emptyClassForm}
+          courseOptions={courseOptions}
           onClose={() => setEditing(undefined)}
           onSave={saveClass}
         />
