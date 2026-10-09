@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
@@ -8,11 +8,45 @@ export default function AddClassStudentsModal({
   students,
   classStudents,
   getEligibility,
+  loadCandidates,
   onClose,
   onAdd,
 }) {
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
+  const [serverCandidates, setServerCandidates] = useState(null);
+  const [loading, setLoading] = useState(Boolean(loadCandidates));
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!loadCandidates) {
+      setLoading(false);
+      return undefined;
+    }
+
+    setLoading(true);
+    setError("");
+
+    loadCandidates(classItem.id)
+      .then((rows) => {
+        if (!cancelled) setServerCandidates(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err?.message || "Could not load student candidates.");
+          setServerCandidates([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadCandidates, classItem.id]);
 
   const currentIds = useMemo(
     () =>
@@ -30,6 +64,17 @@ export default function AddClassStudentsModal({
   const candidates = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
+    if (serverCandidates) {
+      return serverCandidates
+        .filter((item) => !item.alreadyActive)
+        .filter((item) => {
+          const student = item.student;
+          const haystack =
+            `${student.fullName} ${student.studentCode} ${student.email ?? ""}`.toLowerCase();
+          return haystack.includes(keyword);
+        });
+    }
+
     return students
       .filter((student) => !currentIds.has(student.id))
       .filter((student) => {
@@ -39,9 +84,17 @@ export default function AddClassStudentsModal({
       })
       .map((student) => ({
         student,
+        alreadyActive: false,
         eligibility: getEligibility(student.id, classItem.id),
       }));
-  }, [students, currentIds, search, getEligibility, classItem.id]);
+  }, [
+    serverCandidates,
+    students,
+    currentIds,
+    search,
+    getEligibility,
+    classItem.id,
+  ]);
 
   const eligible = candidates.filter((item) => item.eligibility.eligible);
   const blocked = candidates.filter((item) => !item.eligibility.eligible);
@@ -66,7 +119,9 @@ export default function AddClassStudentsModal({
     return (
       <label
         className={`flex items-start gap-3 border-b border-slate-100 px-3 py-2.5 last:border-0 ${
-          disabled ? "cursor-not-allowed bg-slate-50" : "cursor-pointer hover:bg-slate-50"
+          disabled
+            ? "cursor-not-allowed bg-slate-50"
+            : "cursor-pointer hover:bg-slate-50"
         }`}
       >
         <input
@@ -97,7 +152,7 @@ export default function AddClassStudentsModal({
             </span>
           </span>
 
-          {eligibility.checks.length > 0 && (
+          {eligibility.checks?.length > 0 && (
             <span className="mt-1 block text-[11px] text-slate-500">
               {eligibility.checks
                 .map((check) =>
@@ -109,7 +164,7 @@ export default function AddClassStudentsModal({
             </span>
           )}
 
-          {disabled && eligibility.reasons.length > 0 && (
+          {disabled && eligibility.reasons?.length > 0 && (
             <span className="mt-1 block text-xs leading-5 text-red-600">
               {eligibility.reasons.join(" ")}
             </span>
@@ -136,41 +191,57 @@ export default function AddClassStudentsModal({
           />
         </div>
 
+        {error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {error}
+          </div>
+        )}
+
         <div className="max-h-80 overflow-auto rounded-md border border-slate-200">
-          {eligible.length > 0 && (
-            <>
-              <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                Eligible · {eligible.length}
-              </div>
-              {eligible.map((item) => (
-                <StudentRow key={item.student.id} item={item} />
-              ))}
-            </>
-          )}
-
-          {blocked.length > 0 && (
-            <>
-              <div className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                Not eligible · {blocked.length}
-              </div>
-              {blocked.map((item) => (
-                <StudentRow key={item.student.id} item={item} disabled />
-              ))}
-            </>
-          )}
-
-          {!candidates.length && (
+          {loading ? (
             <p className="p-5 text-center text-xs text-slate-400">
-              No students are available for this class.
+              Loading students from database...
             </p>
+          ) : (
+            <>
+              {eligible.length > 0 && (
+                <>
+                  <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Eligible · {eligible.length}
+                  </div>
+                  {eligible.map((item) => (
+                    <StudentRow key={item.student.id} item={item} />
+                  ))}
+                </>
+              )}
+
+              {blocked.length > 0 && (
+                <>
+                  <div className="border-y border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    Not eligible · {blocked.length}
+                  </div>
+                  {blocked.map((item) => (
+                    <StudentRow
+                      key={item.student.id}
+                      item={item}
+                      disabled
+                    />
+                  ))}
+                </>
+              )}
+
+              {!candidates.length && !error && (
+                <p className="p-5 text-center text-xs text-slate-400">
+                  No students are available for this class.
+                </p>
+              )}
+            </>
           )}
         </div>
 
         <p className="text-xs leading-5 text-slate-500">
-          A student can be added only when they have a target for this class
-          course and every required target meets or exceeds the class threshold.
-          Targets from another course are never reused. If the class target
-          requirement has not been configured, assignment is blocked.
+          Eligibility is validated by the backend against student status, course
+          targets and the class target requirement before membership is created.
         </p>
 
         <div className="flex items-center justify-between gap-3">
@@ -181,7 +252,11 @@ export default function AddClassStudentsModal({
             <Button type="button" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={!selectedIds.length}>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={!selectedIds.length || loading}
+            >
               Add Students
             </Button>
           </div>
