@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
-import { csUsers, getCsName } from "./mockClassOperations";
+import { csUsers } from "./mockClassOperations";
 
 const inputClass =
   "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] font-normal text-slate-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
@@ -64,7 +64,7 @@ export default function SupportOverrideModal({
             Current assignment
           </span>
           <strong className="mt-1 block font-medium text-slate-800">
-            {getCsName(schedule.userId)}
+            {schedule.employeeName ?? schedule.userId}
           </strong>
           <span className="text-xs text-slate-500">
             {schedule.date} · {schedule.startTime}–{schedule.endTime}
