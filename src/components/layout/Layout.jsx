@@ -1,48 +1,46 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import Sidebar from './Sidebar'
-import Topbar from './Topbar'
+import { Outlet, useLocation } from "react-router-dom";
+import Sidebar from "./Sidebar";
+import Topbar from "./Topbar";
 
 function findPageMeta(role, pathname) {
-  const items = role.sections.flatMap((section) => section.items)
+  const items = role.sections.flatMap((section) => section.items);
 
-  const exact = items.find((item) => item.path === pathname)
-  if (exact) return exact
+  const exact = items.find((item) => item.path === pathname);
+  if (exact) return exact;
 
   const nested = items
     .filter(
       (item) =>
-        item.path !== '/' &&
-        pathname.startsWith(`${item.path}/`)
+        item.path !== "/" && pathname.startsWith(`${item.path}/`),
     )
-    .sort((a, b) => b.path.length - a.path.length)[0]
+    .sort((a, b) => b.path.length - a.path.length)[0];
 
-  return nested ?? { label: 'Dashboard' }
+  return nested ?? { label: "Dashboard" };
 }
 
-export default function Layout({ role, onChangeRole }) {
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
-  const page = findPageMeta(role, pathname)
-
-  function handleRoleChange(nextRoleKey) {
-    onChangeRole(nextRoleKey)
-    navigate('/', { replace: true })
-  }
+export default function Layout({ role, session, onLogout }) {
+  const { pathname } = useLocation();
+  const page = findPageMeta(role, pathname);
 
   return (
-    <div className="flex bg-[#F5F6F8] min-h-screen">
+    <div className="flex min-h-screen bg-[#F5F6F8]">
       <Sidebar role={role} />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           role={role}
-          onChangeRole={handleRoleChange}
+          session={session}
+          onLogout={onLogout}
           pageTitle={page.label}
-          pageSubtitle={page.label === 'Dashboard' ? 'Academic Cycle: Today, Oct 14, 2024' : undefined}
+          pageSubtitle={
+            page.label === "Dashboard"
+              ? "Authenticated staff workspace"
+              : undefined
+          }
         />
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto p-6">
           <Outlet />
         </main>
       </div>
     </div>
-  )
+  );
 }
