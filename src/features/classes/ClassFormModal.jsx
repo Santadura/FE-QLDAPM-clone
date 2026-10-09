@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import Button from "../../components/ui/Button";
 import Modal from "../../components/ui/Modal";
-import { courses } from "./mockClasses";
+import { courses as fallbackCourses } from "./mockClasses";
 import {
   courseTargetDefinitions,
   getCourseTargetDefinition,
@@ -13,6 +13,7 @@ const inputClass =
 export default function ClassFormModal({
   classItem,
   emptyForm,
+  courseOptions = fallbackCourses,
   onClose,
   onSave,
 }) {
@@ -103,7 +104,7 @@ export default function ClassFormModal({
               value={form.courseId}
               onChange={update}
             >
-              {courses.map((course) => (
+              {courseOptions.map((course) => (
                 <option key={course.id} value={course.id}>
                   {course.name}
                 </option>

@@ -3,18 +3,10 @@ import StudentsView from "../features/students/StudentsView";
 import StudentFormModal from "../features/students/StudentFormModal";
 import AssignStudentsModal from "../features/students/AssignStudentsModal";
 import { PAGE_SIZE, emptyForm } from "../features/students/mockStudents";
-import { demoTeacherId } from "../features/academic/mockAcademicRelations";
 import { useAcademicData } from "../features/academic/AcademicDataContext";
-
-const actors = {
-  ADMIN: { id: "admin-001", fullName: "System Admin", role: "ADMIN" },
-  TEACHER: { id: demoTeacherId, fullName: "David Miller", role: "TEACHER" },
-};
 
 export default function Students({ role }) {
   const roleKey = role?.key ?? "ADMIN";
-  const actor =
-    actors[roleKey] ?? { id: "staff-demo", fullName: roleKey, role: roleKey };
   const canManage = roleKey === "ADMIN";
 
   const {
@@ -22,8 +14,8 @@ export default function Students({ role }) {
     classes,
     classStudents,
     studentTargets,
-    teachingSchedules,
     studentResults,
+    loadError,
     addStudent,
     updateStudent,
     deleteStudent,
@@ -43,39 +35,10 @@ export default function Students({ role }) {
   const [assigning, setAssigning] = useState(false);
   const [message, setMessage] = useState("");
 
-  const scopedStudents = useMemo(() => {
-    if (roleKey === "ADMIN") return students;
-    if (roleKey !== "TEACHER") return [];
-
-    const classIds = new Set(
-      teachingSchedules
-        .filter(
-          (schedule) =>
-            schedule.teacherId === actor.id && schedule.status === "ASSIGNED",
-        )
-        .map((schedule) => schedule.classId),
-    );
-    const studentIds = new Set(
-      classStudents
-        .filter(
-          (relation) =>
-            classIds.has(relation.classId) && relation.status === "ACTIVE",
-        )
-        .map((relation) => relation.studentId),
-    );
-    return students.filter((student) => studentIds.has(student.id));
-  }, [
-    roleKey,
-    actor.id,
-    students,
-    classStudents,
-    teachingSchedules,
-  ]);
-
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
-    return scopedStudents.filter((student) => {
+    return students.filter((student) => {
       const searchable =
         `${student.fullName} ${student.studentCode} ${student.email ?? ""} ${student.phone ?? ""}`.toLowerCase();
 
@@ -94,64 +57,24 @@ export default function Students({ role }) {
         inClass
       );
     });
-  }, [scopedStudents, search, status, classFilter, classStudents]);
-
-  const teacherClassIds = useMemo(
-    () =>
-      roleKey === "TEACHER"
-        ? new Set(
-            teachingSchedules
-              .filter(
-                (schedule) =>
-                  schedule.teacherId === actor.id &&
-                  schedule.status === "ASSIGNED",
-              )
-              .map((schedule) => schedule.classId),
-          )
-        : null,
-    [roleKey, teachingSchedules, actor.id],
-  );
-
-  const teacherCourseIds = useMemo(() => {
-    if (roleKey !== "TEACHER") return null;
-
-    return new Set(
-      classes
-        .filter((classItem) => teacherClassIds?.has(classItem.id))
-        .map((classItem) => classItem.courseId),
-    );
-  }, [roleKey, classes, teacherClassIds]);
-
-  const visibleStudentTargets = useMemo(() => {
-    if (roleKey !== "TEACHER") return studentTargets;
-
-    return studentTargets.filter((target) =>
-      teacherCourseIds?.has(target.courseId),
-    );
-  }, [roleKey, studentTargets, teacherCourseIds]);
+  }, [students, search, status, classFilter, classStudents]);
 
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const selected =
-    scopedStudents.find((student) => student.id === selectedId) ?? null;
+    students.find((student) => student.id === selectedId) ?? null;
+
   const selectedClasses = selected
     ? classStudents
         .filter(
           (relation) =>
             relation.studentId === selected.id && relation.status === "ACTIVE",
         )
-        .filter(
-          (relation) =>
-            roleKey !== "TEACHER" || teacherClassIds?.has(relation.classId),
-        )
         .map((relation) => classes.find((item) => item.id === relation.classId))
         .filter(Boolean)
     : [];
+
   const selectedResults = selected
-    ? studentResults.filter(
-        (result) =>
-          result.studentId === selected.id &&
-          (roleKey !== "TEACHER" || teacherClassIds?.has(result.classId)),
-      )
+    ? studentResults.filter((result) => result.studentId === selected.id)
     : [];
 
   const allVisibleChecked =
@@ -188,7 +111,7 @@ export default function Students({ role }) {
 
   function exportCsv() {
     const rows = checked.length
-      ? scopedStudents.filter((student) => checked.includes(student.id))
+      ? students.filter((student) => checked.includes(student.id))
       : filtered;
 
     const csv = [
@@ -198,9 +121,7 @@ export default function Students({ role }) {
           .filter(
             (relation) =>
               relation.studentId === student.id &&
-              relation.status === "ACTIVE" &&
-              (roleKey !== "TEACHER" ||
-                teacherClassIds?.has(relation.classId)),
+              relation.status === "ACTIVE",
           )
           .map(
             (relation) =>
@@ -236,31 +157,32 @@ export default function Students({ role }) {
     URL.revokeObjectURL(url);
   }
 
-  function saveStudent(form) {
+  async function saveStudent(form) {
     const result = editing
-      ? updateStudent(editing.id, form, actor)
-      : addStudent(form, actor);
+      ? await updateStudent(editing.id, form)
+      : await addStudent(form);
 
     if (!result.ok) {
       setMessage(result.reason);
       return;
     }
 
-    const id = editing?.id ?? result.student.id;
-    setSelectedId(id);
+    const id = editing?.id ?? result.student?.id;
+    if (id) setSelectedId(id);
     setEditing(undefined);
     setTab("Overview");
     setMessage("");
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!selected || !canManage) return;
+
     const confirmed = window.confirm(
       `Delete ${selected.fullName}? Hard delete is only allowed when the student has never belonged to a class and has no academic results.`,
     );
     if (!confirmed) return;
 
-    const result = deleteStudent(selected.id, actor);
+    const result = await deleteStudent(selected.id);
     if (!result.ok) {
       setMessage(result.reason);
       return;
@@ -271,9 +193,10 @@ export default function Students({ role }) {
     setMessage("");
   }
 
-  function handleStatusChange(nextStatus) {
+  async function handleStatusChange(nextStatus) {
     if (!selected || !canManage) return;
-    const result = changeStudentStatus(selected.id, nextStatus, actor);
+
+    const result = await changeStudentStatus(selected.id, nextStatus);
     if (!result.ok) {
       setMessage(result.reason);
       return;
@@ -287,14 +210,14 @@ export default function Students({ role }) {
     );
   }
 
-  function assignSelected(classId) {
+  async function assignSelected(classId) {
     const ids = checked.length
       ? checked
       : selected
         ? [selected.id]
         : [];
 
-    const result = assignStudentsToClass(ids, classId, actor);
+    const result = await assignStudentsToClass(ids, classId);
     if (!result.ok) {
       setMessage(result.reason);
       return;
@@ -304,18 +227,6 @@ export default function Students({ role }) {
     setChecked([]);
     setMessage(`${result.added} student(s) added to class.`);
   }
-
-  const classOptions =
-    roleKey === "TEACHER"
-      ? classes.filter((classItem) =>
-          teachingSchedules.some(
-            (schedule) =>
-              schedule.classId === classItem.id &&
-              schedule.teacherId === actor.id &&
-              schedule.status === "ASSIGNED",
-          ),
-        )
-      : classes;
 
   return (
     <>
@@ -328,7 +239,7 @@ export default function Students({ role }) {
         onStatus={(value) => changeFilter(setStatus, value)}
         classFilter={classFilter}
         onClassFilter={(value) => changeFilter(setClassFilter, value)}
-        classes={classOptions}
+        classes={classes}
         classStudents={classStudents}
         onExport={exportCsv}
         onAdd={canManage ? () => setEditing(null) : undefined}
@@ -338,7 +249,7 @@ export default function Students({ role }) {
             : undefined
         }
         onClearSelection={() => setChecked([])}
-        message={message}
+        message={message || loadError}
         visible={visible}
         selectedId={selectedId}
         checked={checked}
@@ -382,7 +293,7 @@ export default function Students({ role }) {
         onChangeStatus={
           canManage && selected ? handleStatusChange : undefined
         }
-        studentTargets={visibleStudentTargets}
+        studentTargets={studentTargets}
         onDelete={canManage && selected ? handleDelete : undefined}
       />
 

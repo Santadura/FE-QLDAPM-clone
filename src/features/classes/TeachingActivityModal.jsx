@@ -88,6 +88,8 @@ export default function TeachingActivityModal({
                 type="date"
                 name="examDate"
                 value={form.examDate}
+                min={classItem.startDate}
+                max={classItem.endDate}
                 onChange={update}
                 required
               />
@@ -113,6 +115,8 @@ export default function TeachingActivityModal({
               type="date"
               name="deadline"
               value={form.deadline}
+              min={classItem.startDate}
+              max={classItem.endDate}
               onChange={update}
               required
             />

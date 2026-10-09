@@ -8,29 +8,14 @@ import StudentResultModal from "../features/classes/StudentResultModal";
 import {
   emptyClassForm,
   PAGE_SIZE,
-  courses,
+  courses as fallbackCourses,
   classStatuses,
 } from "../features/classes/mockClasses";
-import {
-  demoTeacherId,
-  getTeacherName,
-} from "../features/academic/mockAcademicRelations";
-import {
-  getCsName,
-} from "../features/classes/mockClassOperations";
 import { useAcademicData } from "../features/academic/AcademicDataContext";
 import { assignableClassStatuses } from "../features/academic/targetEligibility";
 
-const actors = {
-  ADMIN: { id: "admin-001", fullName: "System Admin", role: "ADMIN" },
-  CS: { id: "cs-001", fullName: "Current CS", role: "CS" },
-  TEACHER: { id: demoTeacherId, fullName: "David Miller", role: "TEACHER" },
-};
-
 export default function Classes({ role }) {
   const roleKey = role?.key ?? "ADMIN";
-  const actor =
-    actors[roleKey] ?? { id: "staff-demo", fullName: roleKey, role: roleKey };
   const isAdmin = roleKey === "ADMIN";
   const isCs = roleKey === "CS";
   const isTeacher = roleKey === "TEACHER";
@@ -43,14 +28,16 @@ export default function Classes({ role }) {
     classes,
     classStudents,
     classTargetRequirements,
-    classAccessScopes,
     teachingSchedules,
     staffSchedules,
     assignments,
     exams,
     studentResults,
     auditLogs,
+    courses: apiCourses,
+    loadError,
     getStudentClassEligibility,
+    getClassStudentCandidates,
     assignStudentsToClass,
     removeStudentFromClass,
     addClass,
@@ -80,47 +67,11 @@ export default function Classes({ role }) {
   const [grading, setGrading] = useState(false);
   const [message, setMessage] = useState("");
 
-  const scopedClasses = useMemo(() => {
-    if (isAdmin) return classes;
+  const courseOptions = apiCourses.length ? apiCourses : fallbackCourses;
 
-    if (isTeacher) {
-      const assignedIds = new Set(
-        teachingSchedules
-          .filter(
-            (schedule) =>
-              schedule.teacherId === actor.id && schedule.status === "ASSIGNED",
-          )
-          .map((schedule) => schedule.classId),
-      );
-      return classes.filter((classItem) => assignedIds.has(classItem.id));
-    }
-
-    if (isCs) {
-      const allowedClassIds = new Set(
-        classAccessScopes
-          .filter(
-            (scope) =>
-              scope.role === "CS" &&
-              scope.userId === actor.id &&
-              scope.status === "ACTIVE",
-          )
-          .map((scope) => scope.classId),
-      );
-
-      return classes.filter((classItem) => allowedClassIds.has(classItem.id));
-    }
-
-    return [];
-  }, [
-    classes,
-    teachingSchedules,
-    staffSchedules,
-    classAccessScopes,
-    isAdmin,
-    isTeacher,
-    isCs,
-    actor.id,
-  ]);
+  // The backend already applies role scope:
+  // Admin -> all classes, CS -> managed classes, Teacher -> assigned classes.
+  const scopedClasses = classes;
 
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -132,8 +83,9 @@ export default function Classes({ role }) {
             schedule.classId === classItem.id &&
             schedule.status === "ASSIGNED",
         )
-        .map((schedule) => getTeacherName(schedule.teacherId))
+        .map((schedule) => schedule.teacherName ?? schedule.teacherId)
         .join(" ");
+
       const searchable =
         `${classItem.classCode} ${classItem.name} ${teacherNames}`.toLowerCase();
 
@@ -148,6 +100,7 @@ export default function Classes({ role }) {
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const selected =
     scopedClasses.find((classItem) => classItem.id === selectedId) ?? null;
+
   const canModifySelectedRoster =
     canManageStudents &&
     selected &&
@@ -159,16 +112,17 @@ export default function Classes({ role }) {
           relation.classId === selected.id && relation.status === "ACTIVE",
       )
     : [];
+
   const selectedStudents = selectedClassStudents
-    .map((relation) => students.find((student) => student.id === relation.studentId))
+    .map((relation) =>
+      students.find((student) => student.id === relation.studentId),
+    )
     .filter(Boolean);
 
   const selectedTeachingSchedules = selected
     ? teachingSchedules.filter(
         (schedule) =>
-          schedule.classId === selected.id &&
-          schedule.status === "ASSIGNED" &&
-          (!isTeacher || schedule.teacherId === actor.id),
+          schedule.classId === selected.id && schedule.status === "ASSIGNED",
       )
     : [];
 
@@ -177,8 +131,7 @@ export default function Classes({ role }) {
         (schedule) =>
           schedule.classId === selected.id &&
           schedule.staffRole === "CS" &&
-          schedule.status === "ASSIGNED" &&
-          (isAdmin || (isCs && schedule.userId === actor.id)),
+          schedule.status === "ASSIGNED",
       )
     : [];
 
@@ -223,9 +176,10 @@ export default function Classes({ role }) {
                   schedule.classId === classItem.id &&
                   schedule.status === "ASSIGNED",
               )
-              .map((schedule) => getTeacherName(schedule.teacherId)),
+              .map((schedule) => schedule.teacherName ?? schedule.teacherId),
           ),
         ].join("; ");
+
         const studentCount = classStudents.filter(
           (relation) =>
             relation.classId === classItem.id && relation.status === "ACTIVE",
@@ -234,7 +188,7 @@ export default function Classes({ role }) {
         return [
           classItem.classCode,
           classItem.name,
-          courses.find((item) => item.id === classItem.courseId)?.name ?? "",
+          courseOptions.find((item) => item.id === classItem.courseId)?.name ?? "",
           teachers,
           studentCount,
           classItem.startDate,
@@ -260,86 +214,99 @@ export default function Classes({ role }) {
     URL.revokeObjectURL(url);
   }
 
-  function saveClass(form) {
+  async function saveClass(form) {
     const result = editing
-      ? updateClass(editing.id, form, actor)
-      : addClass(form, actor);
+      ? await updateClass(editing.id, form)
+      : await addClass(form);
 
     if (!result.ok) {
       setMessage(result.reason);
       return;
     }
 
-    setSelectedId(editing?.id ?? result.classItem.id);
+    setSelectedId(editing?.id ?? result.classItem?.id ?? null);
     setEditing(undefined);
     setTab("Overview");
     setMessage("");
   }
 
-  function advanceStatus(nextStatus) {
+  async function advanceStatus(nextStatus) {
     if (!selected || !canManageCore) return;
-    const result = advanceClassStatus(selected.id, nextStatus, actor);
+
+    const result = await advanceClassStatus(selected.id, nextStatus);
     if (!result.ok) {
       setMessage(result.reason);
       return;
     }
+
     setMessage("");
   }
 
-  function confirmSupportOverride({
+  async function confirmSupportOverride({
     scheduleId,
     newCsId,
     reason,
     allowConflict,
   }) {
     if (!isAdmin) return;
-    const result = overrideSupport(
+
+    const result = await overrideSupport(
       scheduleId,
       newCsId,
       reason,
-      actor,
+      null,
       allowConflict,
     );
+
     if (!result.ok) {
       setMessage(result.reason);
       return;
     }
+
     setOverrideSchedule(null);
     setMessage("");
   }
 
-  function addStudents(ids) {
+  async function addStudents(ids) {
     if (!selected || !canManageStudents) return;
-    const result = assignStudentsToClass(ids, selected.id, actor);
+
+    const result = await assignStudentsToClass(ids, selected.id);
     if (!result.ok) {
       setMessage(result.reason);
       return;
     }
+
     setAddingStudents(false);
     setMessage(`${result.added} student(s) added to ${selected.classCode}.`);
   }
 
-  function removeStudent(studentId) {
+  async function removeStudent(studentId) {
     if (!selected || !canManageStudents) return;
-    const result = removeStudentFromClass(studentId, selected.id, actor);
+
+    const result = await removeStudentFromClass(studentId, selected.id);
     if (!result?.ok) {
       setMessage(result?.reason ?? "Unable to remove student from class.");
       return;
     }
-    setMessage("Student removed from the active roster. Membership history was preserved.");
+
+    setMessage(
+      "Student removed from the active roster. Membership history was preserved.",
+    );
   }
 
-  function saveActivity(data) {
+  async function saveActivity(data) {
     if (!canTeach || !selected) return;
 
     let result;
     if (editingActivity?.kind === "assignment") {
-      result = updateAssignment(editingActivity.item.id, data, actor);
+      result = await updateAssignment(editingActivity.item.id, data);
     } else if (editingActivity?.kind === "exam") {
-      result = updateExam(editingActivity.item.id, data, actor);
+      result = await updateExam(editingActivity.item.id, data);
     } else {
       result =
-        activityType === "exam" ? addExam(data, actor) : addAssignment(data, actor);
+        activityType === "exam"
+          ? await addExam(data)
+          : await addAssignment(data);
     }
 
     if (result?.ok === false) {
@@ -370,33 +337,39 @@ export default function Classes({ role }) {
     setMessage("");
   }
 
-  function setAssignmentStatus(item, nextStatus) {
+  async function setAssignmentStatus(item, nextStatus) {
     if (!canTeach) return;
-    const result = changeAssignmentStatus(item.id, nextStatus, actor);
+
+    const result = await changeAssignmentStatus(item.id, nextStatus);
     if (!result.ok) {
       setMessage(result.reason);
       return;
     }
+
     setMessage(`Assignment marked ${nextStatus.toLowerCase()}.`);
   }
 
-  function setExamStatus(item, nextStatus) {
+  async function setExamStatus(item, nextStatus) {
     if (!canTeach) return;
-    const result = changeExamStatus(item.id, nextStatus, actor);
+
+    const result = await changeExamStatus(item.id, nextStatus);
     if (!result.ok) {
       setMessage(result.reason);
       return;
     }
+
     setMessage(`Exam marked ${nextStatus.toLowerCase()}.`);
   }
 
-  function saveResult(data) {
+  async function saveResult(data) {
     if (!canTeach) return;
-    const result = upsertStudentResult(data, actor);
+
+    const result = await upsertStudentResult(data);
     if (result?.ok === false) {
       setMessage(result.reason);
       return;
     }
+
     setGrading(false);
     setMessage("Student result and feedback saved.");
   }
@@ -417,7 +390,7 @@ export default function Classes({ role }) {
               schedule.classId === classId &&
               schedule.status === "ASSIGNED",
           )
-          .map((schedule) => getTeacherName(schedule.teacherId)),
+          .map((schedule) => schedule.teacherName ?? schedule.teacherId),
       ),
     ];
   }
@@ -432,7 +405,7 @@ export default function Classes({ role }) {
               schedule.staffRole === "CS" &&
               schedule.status === "ASSIGNED",
           )
-          .map((schedule) => getCsName(schedule.userId)),
+          .map((schedule) => schedule.employeeName ?? schedule.userId),
       ),
     ];
   }
@@ -450,6 +423,7 @@ export default function Classes({ role }) {
         onCourse={(value) => changeFilter(setCourse, value)}
         status={status}
         onStatus={(value) => changeFilter(setStatus, value)}
+        courses={courseOptions}
         onExport={exportCsv}
         onCreate={canManageCore ? () => setEditing(null) : undefined}
         visible={visible}
@@ -556,13 +530,14 @@ export default function Classes({ role }) {
             : undefined
         }
         auditLogs={selectedAuditLogs}
-        message={message}
+        message={message || loadError}
       />
 
       {editing !== undefined && (
         <ClassFormModal
           classItem={editing}
           emptyForm={emptyClassForm}
+          courseOptions={courseOptions}
           onClose={() => setEditing(undefined)}
           onSave={saveClass}
         />
@@ -583,6 +558,7 @@ export default function Classes({ role }) {
           students={students}
           classStudents={classStudents}
           getEligibility={getStudentClassEligibility}
+          loadCandidates={getClassStudentCandidates}
           onClose={() => setAddingStudents(false)}
           onAdd={addStudents}
         />

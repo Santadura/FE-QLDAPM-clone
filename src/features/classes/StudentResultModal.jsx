@@ -38,8 +38,14 @@ export default function StudentResultModal({
 
   const [studentId, setStudentId] = useState(students[0]?.id ?? "");
   const [activityValue, setActivityValue] = useState(activities[0]?.value ?? "");
-  const [score, setScore] = useState("");
-  const [feedback, setFeedback] = useState("");
+  const initialResult = existingResults.find(
+    (item) =>
+      item.studentId === (students[0]?.id ?? "") &&
+      item.assignmentId === (activities[0]?.assignmentId ?? null) &&
+      item.examId === (activities[0]?.examId ?? null),
+  );
+  const [score, setScore] = useState(initialResult?.score ?? "");
+  const [feedback, setFeedback] = useState(initialResult?.feedback ?? "");
 
   const activity = activities.find((item) => item.value === activityValue);
 
@@ -118,6 +124,9 @@ export default function StudentResultModal({
           Score
           <input
             className={inputClass}
+            type="number"
+            step="0.01"
+            min="0"
             value={score}
             onChange={(event) => setScore(event.target.value)}
             required
