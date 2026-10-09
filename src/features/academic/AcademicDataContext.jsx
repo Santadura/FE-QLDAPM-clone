@@ -27,6 +27,16 @@ function mergeById(...lists) {
   return [...map.values()];
 }
 
+function mergeMemberships(...lists) {
+  const map = new Map();
+  lists.flat().filter(Boolean).forEach((item) => {
+    if (!item?.classId || !item?.studentId) return;
+    const key = `${item.classId}:${item.studentId}`;
+    map.set(key, { ...(map.get(key) ?? {}), ...item });
+  });
+  return [...map.values()];
+}
+
 function mapStudentSummary(item) {
   return {
     id: item.studentId,
@@ -300,7 +310,7 @@ export function AcademicDataProvider({ children }) {
         mappedClassDetails.flatMap((item) => item.requirements),
       );
       setClassStudents(
-        mergeById(
+        mergeMemberships(
           mappedStudentDetails.flatMap((item) => item.memberships),
           mappedClassDetails.flatMap((item) => item.memberships),
         ),
