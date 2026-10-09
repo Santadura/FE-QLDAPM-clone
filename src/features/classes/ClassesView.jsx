@@ -15,7 +15,7 @@ import {
 import Button from "../../components/ui/Button";
 import EntityTable from "../../components/ui/EntityTable";
 import DetailPanel from "../../components/ui/DetailPanel";
-import { classStatuses, courses } from "./mockClasses";
+import { classStatuses, courses as fallbackCourses } from "./mockClasses";
 
 const labelClass =
   "mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400";
@@ -32,8 +32,8 @@ function statusLabel(status) {
   return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
-function courseName(courseId) {
-  return courses.find((course) => course.id === courseId)?.name ?? "—";
+function courseName(courseId, options = fallbackCourses) {
+  return options.find((course) => course.id === courseId)?.name ?? "—";
 }
 
 function formatDate(value) {
@@ -616,7 +616,7 @@ function ClassDetail({
                 <div>
                   <span className={labelClass}>Course</span>
                   <strong className="font-medium">
-                    {courseName(classItem.courseId)}
+                    {classItem.courseName ?? courseName(classItem.courseId)}
                   </strong>
                 </div>
                 <div>
@@ -741,6 +741,7 @@ export default function ClassesView({
   onCourse,
   status,
   onStatus,
+  courses = fallbackCourses,
   onExport,
   onCreate,
   visible,
@@ -795,7 +796,8 @@ export default function ClassesView({
       key: "courseId",
       label: "Course",
       width: "w-[13%]",
-      render: (classItem) => courseName(classItem.courseId),
+      render: (classItem) =>
+        classItem.courseName ?? courseName(classItem.courseId, courses),
     },
     {
       key: "teacher",
