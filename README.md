@@ -1,16 +1,53 @@
-# React + Vite
+# IIG Learning System Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite frontend for the IIG Learning System.
 
-Currently, two official plugins are available:
+## Backend integration
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Student Management and Class Management are connected to the Spring Boot API in
+`Santadura/BE-QLDAPM-clone`.
 
-## React Compiler
+Create a local environment file:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+cp .env.example .env
+```
 
-## Expanding the Oxlint configuration
+Default API URL:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```properties
+VITE_API_URL=http://localhost:8080/api
+```
+
+Start the backend first, including PostgreSQL migration and seed, then run:
+
+```bash
+npm install
+npm run dev
+```
+
+The seeded development accounts use password `123456`, including:
+
+- `admin`
+- `teacher001`
+- `cs001`
+
+The authenticated backend role controls the available sidebar routes and data
+scope. The old client-side role switcher is intentionally disabled for the real
+JWT workflow.
+
+## Integrated workflow
+
+The following flows now use backend APIs and persisted PostgreSQL data:
+
+- login with JWT
+- Student list/detail/create/update/delete/status
+- Student course targets
+- Class list/detail/create/update/status
+- Student eligibility and ClassStudent roster changes
+- Assignment and Exam lifecycle
+- StudentResult grading and feedback
+- Admin support override for an existing StaffSchedule
+
+Availability, normal TC/CM scheduling, payroll and statistics remain separate
+follow-up integrations.
