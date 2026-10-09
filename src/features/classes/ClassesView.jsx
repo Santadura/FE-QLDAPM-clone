@@ -16,8 +16,6 @@ import Button from "../../components/ui/Button";
 import EntityTable from "../../components/ui/EntityTable";
 import DetailPanel from "../../components/ui/DetailPanel";
 import { classStatuses, courses } from "./mockClasses";
-import { getCsName } from "./mockClassOperations";
-import { getTeacherName } from "../academic/mockAcademicRelations";
 
 const labelClass =
   "mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400";
@@ -166,13 +164,10 @@ function ScheduleTab({ schedules }) {
           className="rounded-md border border-slate-200 bg-white p-3 text-[13px]"
         >
           <strong className="block font-medium text-slate-800">
-            {getTeacherName(schedule.teacherId)}
+            {schedule.teacherName ?? schedule.teacherId}
           </strong>
           <span className="mt-1 block text-xs text-slate-500">
             {schedule.date} · {schedule.startTime}–{schedule.endTime}
-          </span>
-          <span className="mt-1 block text-[11px] text-slate-400">
-            Assigned by {schedule.assignedBy}
           </span>
         </div>
       ))}
@@ -203,14 +198,18 @@ function SupportTab({ schedules, canOverride, onOverride }) {
           <div className="flex items-start justify-between gap-3">
             <div>
               <strong className="block font-medium text-slate-800">
-                {getCsName(schedule.userId)}
+                {schedule.employeeName ?? schedule.userId}
               </strong>
               <span className="mt-1 block text-xs text-slate-500">
                 {schedule.date} · {schedule.startTime}–{schedule.endTime}
               </span>
-              <span className="mt-1 block text-[11px] text-slate-400">
-                Assigned by {schedule.assignedBy}
-              </span>
+              {schedule.assignmentSource && (
+                <span className="mt-1 block text-[11px] text-slate-400">
+                  {schedule.assignmentSource === "ADMIN_OVERRIDE"
+                    ? "Administrative override"
+                    : "Standard assignment"}
+                </span>
+              )}
             </div>
             {canOverride && (
               <button
@@ -632,8 +631,9 @@ function ClassDetail({
                   <span>
                     {[
                       ...new Set(
-                        teachingSchedules.map((schedule) =>
-                          getTeacherName(schedule.teacherId),
+                        teachingSchedules.map(
+                          (schedule) =>
+                            schedule.teacherName ?? schedule.teacherId,
                         ),
                       ),
                     ].join(", ") || "Not assigned"}
@@ -662,8 +662,9 @@ function ClassDetail({
                   <span>
                     {[
                       ...new Set(
-                        supportSchedules.map((schedule) =>
-                          getCsName(schedule.userId),
+                        supportSchedules.map(
+                          (schedule) =>
+                            schedule.employeeName ?? schedule.userId,
                         ),
                       ),
                     ].join(", ") || "Not assigned"}
@@ -768,7 +769,6 @@ export default function ClassesView({
   exams,
   onCreateAssignment,
   onCreateExam,
-  teacherActorId,
   onEditAssignment,
   onAssignmentStatus,
   onEditExam,
