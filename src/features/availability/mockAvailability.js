@@ -14,6 +14,17 @@ export const shiftDefinitions = [
   { key: "evening", label: "Buổi tối", range: "18:00 – 21:00" },
 ];
 
+// Selecting a different shift resets the suggested hours, while edits within
+// the same shift and previously saved custom hours remain untouched.
+export function applyAvailabilityShift(form, nextShift) {
+  if (form.shift === nextShift) return form;
+  const definition = shiftDefinitions.find((shift) => shift.key === nextShift);
+  if (!definition) return form;
+
+  const [start, end] = definition.range.split(" – ");
+  return { ...form, shift: nextShift, start, end };
+}
+
 export const initialAvailability = [
   {
     id: "slot-mon-evening",
