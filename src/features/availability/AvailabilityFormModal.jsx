@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from "../../components/ui/Modal";
 import Button from "../../components/ui/Button";
-import { shiftDefinitions, weekDayDefinitions } from "./mockAvailability";
+import { applyAvailabilityShift, shiftDefinitions, weekDayDefinitions } from "./mockAvailability";
 
 const fieldClass =
   "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-[13px] text-slate-700 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100";
@@ -21,6 +21,10 @@ export default function AvailabilityFormModal({
 
   function update(field, nextValue) {
     setForm((current) => ({ ...current, [field]: nextValue }));
+  }
+
+  function updateShift(nextShift) {
+    setForm((current) => applyAvailabilityShift(current, nextShift));
   }
 
   function submit(event) {
@@ -56,7 +60,7 @@ export default function AvailabilityFormModal({
             <select
               className={fieldClass}
               value={form.shift}
-              onChange={(event) => update("shift", event.target.value)}
+              onChange={(event) => updateShift(event.target.value)}
             >
               {shiftDefinitions.map((shift) => (
                 <option key={shift.key} value={shift.key}>
