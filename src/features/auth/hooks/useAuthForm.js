@@ -36,7 +36,7 @@ export function useAuthForm(mode = 'login') {
     const newErrors = { userId: '', password: '', general: '' };
 
     if (!userId.trim()) {
-      newErrors.userId = 'Vui lòng nhập Email hoặc User ID.';
+      newErrors.userId = mode === 'login' ? 'Vui lòng nhập tên đăng nhập.' : 'Vui lòng nhập email.';
       isValid = false;
     }
 

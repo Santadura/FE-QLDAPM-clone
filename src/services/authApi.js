@@ -6,3 +6,7 @@ export function loginRequest(username, password) {
     body: JSON.stringify({ username, password }),
   });
 }
+
+export function logoutRequest() {
+  return apiRequest('/auth/logout', { method: 'POST' });
+}

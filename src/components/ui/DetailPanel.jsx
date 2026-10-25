@@ -40,8 +40,20 @@ export default function DetailPanel({
               type="button"
               role="tab"
               aria-selected={activeTab === tab.key}
+              tabIndex={activeTab === tab.key ? 0 : -1}
               className={`min-h-9 shrink-0 border-b-2 text-xs font-medium ${activeTab === tab.key ? "border-[#173557] text-[#173557]" : "border-transparent text-slate-500 hover:text-slate-700"}`}
               onClick={() => onTabChange(tab.key)}
+              onKeyDown={(event) => {
+                const index = tabs.findIndex((item) => item.key === tab.key);
+                const nextIndex = event.key === 'ArrowRight' ? (index + 1) % tabs.length
+                  : event.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length
+                    : event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : null;
+                if (nextIndex !== null) {
+                  event.preventDefault();
+                  onTabChange(tabs[nextIndex].key);
+                  event.currentTarget.parentElement.querySelectorAll('[role="tab"]')[nextIndex]?.focus();
+                }
+              }}
             >
               {tab.label}
             </button>

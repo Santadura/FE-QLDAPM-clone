@@ -51,7 +51,7 @@ export const ROLES = {
       {
         title: 'Quản lý Giáo viên',
         items: [
-          { label: 'Danh sách Giáo viên', path: '/teachers', icon: 'Users' },
+          { label: 'Teachers', path: '/teachers', icon: 'Users' },
           // { label: 'Hồ sơ Giáo viên', path: '/teachers/profiles', icon: 'IdCard' },
         ],
       },
@@ -92,7 +92,7 @@ export const ROLES = {
       {
         title: 'Nhân sự vận hành',
         items: [
-          { label: 'Danh sách Sale / CS', path: '/staff', icon: 'Users' },
+          { label: 'Sale / CS Staff', path: '/staff', icon: 'Users' },
         ],
       },
       {
@@ -198,9 +198,9 @@ export const ROLES = {
       {
         title: 'Quản lý nhân sự',
         items: [
+          { label: 'Employees', path: '/employees', icon: 'Users' },
           { label: 'Tài khoản nhân viên', path: '/accounts', icon: 'Users' },
           { label: 'Vai trò & quyền hạn', path: '/permissions', icon: 'ShieldCheck' },
-          { label: 'Trạng thái nhân viên', path: '/accounts/status', icon: 'ToggleLeft' },
         ],
       },
       {

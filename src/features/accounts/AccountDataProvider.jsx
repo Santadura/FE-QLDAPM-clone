@@ -1,97 +1,45 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AccountDataContext } from './hooks/useAccountData';
-import {
-  ACCOUNTS_STORAGE_KEY,
-  createAccount,
-  createProfileUpdate,
-  getNextAccountCode,
-  loadAccounts,
-} from './accountStore';
-import { getRoleKeyFromAccountRole } from '../../config/roles';
+import { ACCOUNT_ROLE_MAP } from '../../config/roles';
+import { getInitials } from './accountStore';
+import { mapAccountResponse } from './accountMapper';
 import { getSession, login as backendLogin, saveSession } from '../../services/api';
+import { profileApi } from '../../services/profileApi';
+import { logoutRequest } from '../../services/authApi';
 
-const ROLE_LABELS = {
-  ADMIN: 'Admin',
-  TEACHER: 'Teacher',
-  TC: 'Teaching Coordinator',
-  CM: 'Center Manager',
-  SALE: 'Sale',
-  CS: 'CS Specialist',
-};
-
-const USERNAME_ALIASES = {
-  teacher: 'teacher001',
-  tc: 'tc001',
-  cm: 'cm001',
-  cs: 'cs001',
-};
-
-function backendUsername(identifier, accounts) {
-  const input = identifier.trim().toLowerCase();
-  const known = accounts.find(
-    (item) =>
-      item.username?.toLowerCase() === input ||
-      item.email?.toLowerCase() === input,
-  );
-  const username = known?.username?.toLowerCase() ?? input;
-  return USERNAME_ALIASES[username] ?? username;
-}
-
-function accountForSession(accounts, session) {
-  if (!session?.token || !session.username || !ROLE_LABELS[session.role]) return null;
-
-  const username = session.username;
-  const existing = accounts.find(
-    (item) => item.username?.toLowerCase() === username.toLowerCase(),
-  );
-  if (existing) return existing;
-
-  // Accounts in this provider are UI profiles, not a second login authority.
-  return {
-    id: Math.max(0, ...accounts.map((item) => Number(item.id) || 0)) + 1,
-    code: `BE-${username.toUpperCase()}`,
-    user: username,
-    username,
-    email: '',
-    initials: username.slice(0, 2).toUpperCase(),
-    role: ROLE_LABELS[session.role],
-    status: 'Active',
-    department: '',
-    phone: '',
-    avatar: '',
-  };
-}
+const ROLE_LABELS = Object.fromEntries(Object.entries(ACCOUNT_ROLE_MAP).map(([label, key]) => [key, label]));
+const USERNAME_ALIASES = { teacher: 'teacher001', tc: 'tc001', cm: 'cm001', cs: 'cs001' };
 
 export default function AccountDataProvider({ children }) {
-  const [accounts, setAccounts] = useState(() => loadAccounts(localStorage));
   const [session, setSession] = useState(() => getSession());
-
-  // Only the backend JWT authorizes access. UI account records can never
-  // authenticate users or change the effective role of a signed-in session.
-  const currentAccount = useMemo(
-    () => accountForSession(accounts, session),
-    [accounts, session],
-  );
-
-  const authUser = useMemo(() => {
-    if (!currentAccount || !session?.token) return null;
-    const { passwordCredential: _passwordCredential, ...profile } = currentAccount;
-    return {
-      ...profile,
-      status: 'Active',
-      role: ROLE_LABELS[session.role],
-      roleKey: session.role,
-    };
-  }, [currentAccount, session]);
+  const [profileState, setProfileState] = useState(null);
+  const [reloadCount, setReloadCount] = useState(0);
+  const profileGeneration = useRef(0);
+  const mutation = useRef(null);
+  const logoutPending = useRef(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const token = session?.token;
 
   useEffect(() => {
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
-  }, [accounts]);
+    if (!token) return;
+    let active = true;
+    const generation = ++profileGeneration.current;
+    profileApi.mine()
+      .then((data) => {
+        if (active && generation === profileGeneration.current && getSession()?.token === token) {
+          setProfileState({ token, account: mapAccountResponse(data), error: '' });
+        }
+      })
+      .catch((error) => {
+        if (active && generation === profileGeneration.current && getSession()?.token === token) {
+          setProfileState({ token, account: null, error: error.message || 'Không thể tải hồ sơ cá nhân.' });
+        }
+      });
+    return () => { active = false; };
+  }, [token, reloadCount]);
 
   useEffect(() => {
-    function handleExpiredSession() {
-      setSession(null);
-    }
+    const handleExpiredSession = () => setSession(null);
     window.addEventListener('qldapm:session-expired', handleExpiredSession);
     window.addEventListener('iig:unauthorized', handleExpiredSession);
     return () => {
@@ -100,119 +48,140 @@ export default function AccountDataProvider({ children }) {
     };
   }, []);
 
+  const authUser = useMemo(() => {
+    if (!session?.token || !ROLE_LABELS[session.role]) return null;
+    const profile = profileState?.token === session.token ? profileState.account : null;
+    return {
+      id: session.username,
+      username: session.username,
+      user: session.username,
+      email: '', phone: '', code: '', employeeId: '',
+      initials: getInitials(session.username),
+      status: 'Active',
+      ...profile,
+      role: ROLE_LABELS[session.role],
+      roleKey: session.role,
+    };
+  }, [session, profileState]);
+
+  const profileLoading = Boolean(session && profileState?.token !== session.token);
+  const profileError = profileState && profileState.token === token ? profileState.error : '';
+
+  const reloadProfile = useCallback(() => {
+    if (!token || mutation.current?.token === token) return;
+    profileGeneration.current += 1;
+    setProfileState(null);
+    setReloadCount((current) => current + 1);
+  }, [token]);
+
   async function login(identifier, password, remember) {
     try {
-      const response = await backendLogin(backendUsername(identifier, accounts), password);
+      const input = identifier.trim().toLowerCase();
+      const response = await backendLogin(USERNAME_ALIASES[input] ?? input, password);
       const role = response?.role?.toUpperCase();
-
-      if (!response?.token || !ROLE_LABELS[role]) {
-        return { ok: false, reason: 'Backend không trả về JWT hoặc vai trò hợp lệ.' };
+      if (!response?.token || !response.username || !ROLE_LABELS[role]) {
+        return { ok: false, reason: 'Backend không trả về phiên đăng nhập hợp lệ.' };
       }
-
       const nextSession = {
-        token: response.token,
-        tokenType: response.tokenType || 'Bearer',
-        username: response.username,
-        role,
+        token: response.token, tokenType: response.tokenType || 'Bearer', username: response.username, role,
       };
-
-      // Save the real JWT before any protected academic/scheduling API calls.
       saveSession(nextSession, Boolean(remember));
+      setProfileState(null);
       setSession(nextSession);
-      return {
-        ok: true,
-        user: accountForSession(accounts, nextSession)?.user || nextSession.username,
-        roleKey: role,
-      };
+      return { ok: true, user: response.username, roleKey: role };
     } catch (error) {
-      return { ok: false, reason: error?.message || 'Không thể đăng nhập vào backend.' };
+      return { ok: false, reason: error.message || 'Không thể đăng nhập vào backend.' };
     }
   }
 
-  function logout() {
+  function clearLocalSession(expectedToken) {
+    const currentToken = getSession()?.token;
+    if (expectedToken && currentToken && currentToken !== expectedToken) return false;
     saveSession(null);
     setSession(null);
+    setProfileState(null);
+    profileGeneration.current += 1;
+    return true;
   }
 
-  function addAccount(form) {
-    const result = createAccount(accounts, form);
-    if (result.ok) setAccounts((current) => [result.account, ...current]);
-    return result;
-  }
-
-  function toggleLock(id) {
-    setAccounts((current) =>
-      current.map((account) =>
-        account.id === id
-          ? { ...account, status: account.status === 'Active' ? 'Locked' : 'Active' }
-          : account,
-      ),
-    );
-    // Local mock account status is not a backend revocation or user lock.
-  }
-
-  function changeRole(id, role) {
-    if (!getRoleKeyFromAccountRole(role)) {
-      return { ok: false, reason: 'Vai trò không hợp lệ.' };
+  async function logout() {
+    const activeToken = getSession()?.token;
+    if (!activeToken) { clearLocalSession(); return { ok: true }; }
+    if (logoutPending.current?.token === activeToken || mutation.current?.token === activeToken) {
+      return { ok: false, reason: 'Đang xử lý yêu cầu trước đó. Vui lòng thử lại sau.' };
     }
-    setAccounts((current) =>
-      current.map((account) => account.id === id ? { ...account, role } : account),
-    );
-    return { ok: true };
+    const operation = { token: activeToken };
+    logoutPending.current = operation;
+    setLoggingOut(true);
+    try {
+      await logoutRequest();
+      return { ok: true, sessionChanged: !clearLocalSession(activeToken) };
+    } catch (error) {
+      // A revoked or expired token is already signed out at the backend.
+      if (error.status === 401) return { ok: true, sessionChanged: !clearLocalSession(activeToken) };
+      return { ok: false, reason: error.message || 'Không thể đăng xuất khỏi backend. Vui lòng thử lại.' };
+    } finally {
+      if (logoutPending.current === operation) {
+        logoutPending.current = null;
+        setLoggingOut(false);
+      }
+    }
+  }
+
+  async function mutateProfile(request, updatesProfile) {
+    const activeSession = session;
+    if (!activeSession || getSession()?.token !== activeSession.token) {
+      return { ok: false, errors: { general: 'Phiên đăng nhập đã hết hiệu lực.' } };
+    }
+    if (mutation.current?.token === activeSession.token) {
+      return { ok: false, errors: { general: 'Đang xử lý yêu cầu trước đó.' } };
+    }
+    if (logoutPending.current?.token === activeSession.token) {
+      return { ok: false, errors: { general: 'Đang đăng xuất. Vui lòng chờ.' } };
+    }
+    const operation = { token: activeSession.token };
+    mutation.current = operation;
+    try {
+      const data = await request();
+      if (getSession()?.token !== activeSession.token) {
+        return { ok: false, errors: { general: 'Phiên đăng nhập đã thay đổi.' } };
+      }
+      if (updatesProfile) {
+        if (data.username !== activeSession.username) throw new Error('Thông tin hồ sơ không khớp tài khoản đăng nhập.');
+        const account = mapAccountResponse(data);
+        // Do not let an older GET replace the profile returned by this save.
+        profileGeneration.current += 1;
+        setProfileState({ token: activeSession.token, account, error: '' });
+        return { ok: true, account };
+      }
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, errors: { general: error.message || 'Không thể cập nhật thông tin.' } };
+    } finally {
+      if (mutation.current === operation) mutation.current = null;
+    }
   }
 
   function updateProfile(form) {
-    if (!authUser) {
-      return { ok: false, errors: { user: 'Phiên đăng nhập đã hết hiệu lực.' } };
-    }
-    // This updates the local presentation profile only; backend user data is not edited.
-    const profileAccount = accounts.find(
-      (account) => account.username?.toLowerCase() === session.username.toLowerCase(),
-    ) ?? currentAccount;
-    const result = createProfileUpdate(accounts, profileAccount, form);
-    if (!result.ok) return result;
-
-    const profile = { ...profileAccount, ...result.profile };
-    setAccounts((current) => {
-      const existing = current.find(
-        (item) => item.username?.toLowerCase() === session.username.toLowerCase(),
-      );
-      if (existing) {
-        return current.map((item) =>
-          item.username?.toLowerCase() === session.username.toLowerCase()
-            ? { ...item, ...result.profile }
-            : item,
-        );
-      }
-      return [...current, profile];
-    });
-    return { ok: true };
+    return mutateProfile(() => profileApi.update({
+      fullName: form.fullName.trim(), email: form.email.trim(), phone: form.phone.trim() || null,
+      specialization: form.specialization.trim() || null,
+    }), true);
   }
 
-  async function changePassword() {
-    return {
-      ok: false,
-      errors: {
-        general: 'Đổi mật khẩu trên backend chưa được triển khai. Mật khẩu hiện tại không thay đổi.',
-      },
-    };
+  async function changePassword(form) {
+    const activeToken = session?.token;
+    const result = await mutateProfile(() => profileApi.changePassword({
+      currentPassword: form.currentPassword, newPassword: form.newPassword, confirmPassword: form.confirmPassword,
+    }), false);
+    // The changed BCrypt hash invalidates every existing credential stamp.
+    // Clear this session directly; its JWT can no longer call /auth/logout.
+    if (result.ok) clearLocalSession(activeToken);
+    return result;
   }
 
   return (
-    <AccountDataContext.Provider
-      value={{
-        accounts,
-        authUser,
-        login,
-        logout,
-        addAccount,
-        toggleLock,
-        changeRole,
-        updateProfile,
-        changePassword,
-        nextAccountCode: getNextAccountCode(accounts),
-      }}
-    >
+    <AccountDataContext.Provider value={{ authUser, profileLoading, profileError, reloadProfile, loggingOut, login, logout, updateProfile, changePassword }}>
       {children}
     </AccountDataContext.Provider>
   );

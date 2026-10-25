@@ -235,7 +235,9 @@ export async function apiRequest(
       response.status === 401 &&
       path !== '/auth/login'
     ) {
-      handleUnauthorized()
+      // A failed request from a previous login must not clear a newer session.
+      const currentToken = getAccessToken()
+      if (!currentToken || currentToken === token) handleUnauthorized()
     }
 
     let message =

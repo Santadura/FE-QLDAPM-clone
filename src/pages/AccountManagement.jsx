@@ -1,94 +1,58 @@
-import React, { useState } from 'react';
-import { toast } from 'react-toastify';
+import { useState } from 'react';
 import AccountToolbar from '../components/accounts/AccountToolbar';
 import AccountTable from '../components/accounts/AccountTable';
 import AccountDetailPanel from '../components/accounts/AccountDetailPanel';
 import AddAccountModal from '../components/accounts/AddAccountModal';
-import ChangeRoleModal from '../components/accounts/ChangeRoleModal';
 import { useAccounts } from '../features/accounts/hooks/useAccounts';
 
-const AccountManagement = () => {
+export default function AccountManagement() {
   const {
-    accounts, nextAccountCode,
-    searchTerm, selectedRole, selectedStatus,
-    currentPage, totalItems, paginatedAccounts, itemsPerPage,
-    handleSearch, handleFilterRole, handleFilterStatus,
-    handlePageChange, handleExport, handleAddAccount,
-    handleToggleLock, handleChangeRole,
+    accounts, authUser, loading, loadError, pending, reloadAccounts,
+    searchTerm, selectedRole, selectedStatus, currentPage, totalItems, paginatedAccounts, itemsPerPage,
+    handleSearch, handleFilterRole, handleFilterStatus, handlePageChange, handleExport, handleAddAccount, handleToggleLock,
   } = useAccounts();
-
   const [selectedAccountId, setSelectedAccountId] = useState(null);
-  const selectedAccount = accounts.find(account => account.id === selectedAccountId) || null;
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isChangeRoleModalOpen, setIsChangeRoleModalOpen] = useState(false);
+  const selectedAccount = accounts.find((account) => account.id === selectedAccountId) || null;
 
-  const onToggleLockAccount = () => {
-    if (!selectedAccount) return;
-    handleToggleLock(selectedAccount.id);
-    
-    const newStatus = selectedAccount.status === 'Active' ? 'Locked' : 'Active';
-    
-    toast.success(`Đã ${newStatus === 'Locked' ? 'khóa' : 'mở khóa'} tài khoản ${selectedAccount.user}`);
+  const onAddAccountSubmit = async (form) => {
+    const result = await handleAddAccount(form);
+    if (result.ok) setSelectedAccountId(result.account.id);
+    return result;
   };
 
-  const onChangeRoleSubmit = (newRole) => {
-    if (!selectedAccount) return;
-    return handleChangeRole(selectedAccount.id, newRole);
-  };
+  if (loading) return <div role="status" className="p-6 text-slate-500">Đang tải tài khoản...</div>;
+  if (loadError) return (
+    <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-700">
+      <p>{loadError}</p>
+      <button onClick={reloadAccounts} className="mt-3 underline">Thử lại</button>
+    </div>
+  );
 
   return (
     <div className={`grid items-start gap-4 ${selectedAccount ? 'xl:grid-cols-[minmax(0,1fr)_350px]' : 'grid-cols-1'}`}>
       <div className="min-w-0">
-        
-        <AccountToolbar 
-          searchTerm={searchTerm}
-          onSearch={handleSearch}
-          selectedRole={selectedRole}
-          onRoleChange={handleFilterRole}
-          selectedStatus={selectedStatus}
-          onStatusChange={handleFilterStatus}
-          onExport={handleExport}
-          onAddClick={() => setIsAddModalOpen(true)}
+        <AccountToolbar
+          searchTerm={searchTerm} onSearch={handleSearch}
+          selectedRole={selectedRole} onRoleChange={handleFilterRole}
+          selectedStatus={selectedStatus} onStatusChange={handleFilterStatus}
+          onExport={handleExport} onAddClick={() => { if (!pending) setIsAddModalOpen(true); }}
         />
-        
-          <AccountTable 
-            accounts={paginatedAccounts} 
-            onRowClick={(account) => setSelectedAccountId(account.id)}
-            selectedAccountId={selectedAccount?.id}
-            currentPage={currentPage}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPageChange={handlePageChange}
-          />
+        <AccountTable
+          accounts={paginatedAccounts} selectedAccountId={selectedAccount?.id}
+          onRowClick={(account) => { if (!pending) setSelectedAccountId(account.id); }}
+          currentPage={currentPage} totalItems={totalItems} itemsPerPage={itemsPerPage} onPageChange={handlePageChange}
+        />
       </div>
-
       {selectedAccount && (
-        <div className="min-w-0">
-          <AccountDetailPanel 
-            account={selectedAccount} 
-            key={selectedAccount.id}
-            onClose={() => setSelectedAccountId(null)}
-            onToggleLock={onToggleLockAccount}
-            onChangeRoleClick={() => setIsChangeRoleModalOpen(true)}
-          />
-        </div>
+        <AccountDetailPanel
+          account={selectedAccount} pending={pending}
+          isCurrentAccount={selectedAccount.username === authUser?.username}
+          onClose={() => { if (!pending) setSelectedAccountId(null); }}
+          onToggleLock={() => handleToggleLock(selectedAccount.username)}
+        />
       )}
-
-      {isAddModalOpen && <AddAccountModal
-        onClose={() => setIsAddModalOpen(false)} 
-        onSubmit={handleAddAccount} 
-        nextAccountCode={nextAccountCode}
-      />}
-
-      {isChangeRoleModalOpen && selectedAccount && <ChangeRoleModal
-        onClose={() => setIsChangeRoleModalOpen(false)}
-        onSubmit={onChangeRoleSubmit}
-        currentRole={selectedAccount?.role}
-        accountName={selectedAccount?.user}
-      />}
-
+      {isAddModalOpen && <AddAccountModal onClose={() => setIsAddModalOpen(false)} onSubmit={onAddAccountSubmit} />}
     </div>
   );
-};
-
-export default AccountManagement;
+}

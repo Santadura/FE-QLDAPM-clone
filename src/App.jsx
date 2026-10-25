@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import Classes from "./pages/Classes";
 import AccountManagement from "./pages/AccountManagement";
+import EmployeeManagement from "./pages/EmployeeManagement";
 import LoginPage from "./pages/LoginPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -351,6 +352,13 @@ function AppRoutes() {
                    ACCOUNT MANAGEMENT
                 ======================================= */
 
+                else if (["/employees", "/teachers", "/staff"].includes(item.path)) {
+                  element = (
+                    <ProtectedRoute allowedRoles={["ADMIN", "TC", "CM"]}>
+                      <EmployeeManagement />
+                    </ProtectedRoute>
+                  );
+                }
                 else if (
                   item.path === "/accounts"
                 ) {

@@ -13,7 +13,7 @@ const columns = [
 
         <div>
           <div className="font-medium text-slate-900">{acc.user}</div>
-          <div className="text-xs text-slate-400">{acc.code}</div>
+          <div className="text-xs text-slate-400">{acc.code || '—'}</div>
         </div>
       </div>
     ),
@@ -39,8 +39,8 @@ const columns = [
     ),
   },
   {
-    key: 'lastLogin',
-    label: 'Last Login',
+    key: 'email',
+    label: 'Email',
   },
 ];
 

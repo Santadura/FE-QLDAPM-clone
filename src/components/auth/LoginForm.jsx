@@ -36,7 +36,7 @@ export const LoginForm = ({
       <form onSubmit={handleSubmit} className="space-y-6" noValidate>
         <div>
           <label htmlFor="login-identifier" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-            Email or User ID
+            {mode === 'login' ? 'Tên đăng nhập' : 'Email'}
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -53,7 +53,7 @@ export const LoginForm = ({
               className={`block w-full pl-10 pr-3 py-2 border rounded-md focus:outline-none focus:ring-1 text-sm ${
                 errors.userId ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-[#1a365d] focus:border-[#1a365d]'
               }`}
-              placeholder="admin@domain.com"
+              placeholder={mode === 'login' ? 'admin' : 'you@example.com'}
             />
           </div>
           

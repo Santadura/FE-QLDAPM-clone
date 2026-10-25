@@ -1,5 +1,6 @@
 import { Bell, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { useAccountData } from "../../features/accounts/hooks/useAccountData";
 
 export default function Topbar({
@@ -8,14 +9,12 @@ export default function Topbar({
   pageSubtitle,
 }) {
   const navigate = useNavigate();
-  const { authUser, logout } = useAccountData();
+  const { authUser, logout, loggingOut } = useAccountData();
 
-  const handleLogout = () => {
-    logout();
-
-    navigate("/login", {
-      replace: true,
-    });
+  const handleLogout = async () => {
+    const result = await logout();
+    if (!result.ok) { toast.error(result.reason); return; }
+    if (!result.sessionChanged) navigate("/login", { replace: true });
   };
 
   return (
@@ -76,8 +75,10 @@ export default function Topbar({
           <button
             type="button"
             onClick={handleLogout}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-            title="Đăng xuất"
+            disabled={loggingOut}
+            aria-busy={loggingOut}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-wait disabled:opacity-50"
+            title={loggingOut ? "Đang đăng xuất..." : "Đăng xuất"}
           >
             <LogOut size={16} />
           </button>
