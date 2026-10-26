@@ -113,7 +113,10 @@ export default function TeacherAttendanceTab({ classId }) {
         <div className="space-y-2">
           {rows.map((slot) => {
             const archived = slot.assignmentStatus === "CANCELLED";
-            const editable = !archived && Boolean(slot.assignedToMe) && hasStarted(slot, now);
+            const activeAssignment = slot.assignmentStatus === "ASSIGNED";
+            // Do not show an enabled Save button when an older/incompatible API
+            // omits assignmentStatus. The BE must explicitly confirm ASSIGNED.
+            const editable = activeAssignment && Boolean(slot.assignedToMe) && hasStarted(slot, now);
             const saved = slot.attendanceStatus;
             const chosen = drafts[slot.id] ?? saved ?? "";
             const changed = chosen && chosen !== saved;
@@ -131,6 +134,12 @@ export default function TeacherAttendanceTab({ classId }) {
                       <span className="mt-1 inline-block rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
                         Lịch sử giáo viên đã thay / buổi đã hủy — chỉ xem
                       </span>
+                    )}
+                    {!archived && !activeAssignment && (
+                      <p role="alert" className="mt-1 text-xs text-red-700">
+                        Không xác định được trạng thái phân công giáo viên từ BE.
+                        Vui lòng cập nhật BE đồng bộ với FE trước khi điểm danh.
+                      </p>
                     )}
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${statusClass[saved] || "bg-slate-100 text-slate-600"}`}>

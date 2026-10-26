@@ -55,6 +55,12 @@ jobs:
           else
             echo "Testing backend main (no matching branch)"
           fi
+      - name: Print tested FE/BE revisions
+        shell: bash
+        run: |
+          echo "FE: $(git rev-parse HEAD)"
+          echo "BE: $(git -C backend rev-parse HEAD)"
+          echo "Both must expose the teacher-attendance assignmentStatus contract."
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
