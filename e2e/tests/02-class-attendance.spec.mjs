@@ -147,11 +147,25 @@ test('create class, approve availability, staff the course and mark a past teach
   await page.getByText('Điểm danh GV', { exact: true }).click();
   await expect(page.locator('select[aria-label*="' + past + '"]')).toHaveValue('PRESENT');
   await page.locator('select[aria-label*="' + past + '"]').selectOption('LATE');
-  await page.getByRole('button', { name: 'Lưu điểm danh' }).first().click();
+  // Click returns before the async PUT has necessarily finished. Wait for the
+  // exact lesson's response and the UI success message before querying the DB.
+  const [correctionResponse] = await Promise.all([
+    page.waitForResponse((response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(attendanceUrl + '/' + oldLesson.id)),
+    page.getByRole('button', { name: 'Lưu điểm danh' }).first().click(),
+  ]);
+  expect(correctionResponse.ok(), 'teacher attendance correction PUT must succeed').toBe(true);
+  await expect(page.getByRole('status')).toContainText('Đã lưu điểm danh giáo viên');
+  await expect(page.locator('select[aria-label*="' + past + '"]')).toHaveValue('LATE');
 
+  // Verify the actual persisted value through BE, not merely the select draft.
+  await expect.poll(async () => {
+    const updatedRows = await call('cs003', 'GET', attendanceUrl);
+    return updatedRows.find((x) => x.id === oldLesson.id)?.attendanceStatus;
+  }, { message: 'corrected teacher attendance must be persisted in BE' }).toBe('LATE');
   const finalRows = await call('cs003', 'GET', attendanceUrl);
   const saved = finalRows.find((x) => x.id === oldLesson.id);
-  expect(saved.attendanceStatus).toBe('LATE');
   expect(saved.recordedByName).toBeTruthy();
-  expect(nextLesson.attendanceStatus).toBeFalsy();
+  expect(finalRows.find((x) => x.id === nextLesson.id)?.attendanceStatus).toBeFalsy();
 });
