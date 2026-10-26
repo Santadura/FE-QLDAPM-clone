@@ -4,6 +4,8 @@ import { test, expect } from '@playwright/test';
 // Every CI job receives a disposable, newly seeded database.
 const apiBase = process.env.E2E_API_URL || 'http://localhost:8080/api';
 const password = process.env.E2E_SEED_PASSWORD || '123456';
+// This test writes real DB records: never retry against the same CI database.
+test.describe.configure({ retries: 0, timeout: 180_000 });
 
 function vietnamDate(offset) {
   // UTC+7 has no DST. Using a day number avoids the runner's UTC day boundary.
@@ -125,7 +127,7 @@ test('create class, approve availability, staff the course and mark a past teach
   await page.locator('#login-password').fill(password);
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/\/cs(?:\/|$)/);
-  await page.goto('/cs/classes');
+  await page.goto('/cs/classes/update');
   await page.getByRole('textbox', { name: 'Search classes' }).fill(code);
   await expect(page.getByText(code).first()).toBeVisible();
   await page.getByText(code).first().click();
