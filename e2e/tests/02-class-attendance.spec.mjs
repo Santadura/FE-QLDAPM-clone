@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 // Real Spring Boot + migrated PostgreSQL are required. No API mocks.
 // Every CI job receives a disposable, newly seeded database.
-const apiBase = process.env.E2E_API_URL || 'http://127.0.0.1:8080/api';
+const apiBase = process.env.E2E_API_URL || 'http://localhost:8080/api';
 const password = process.env.E2E_SEED_PASSWORD || '123456';
 
 function vietnamDate(offset) {
