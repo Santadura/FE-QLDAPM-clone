@@ -66,7 +66,8 @@ export default function TeacherAttendanceTab({ classId }) {
 
   async function save(slot) {
     const status = drafts[slot.id];
-    if (!status || savingId !== null || status === slot.attendanceStatus) return;
+    if (slot.assignmentStatus !== "ASSIGNED" ||
+        !status || savingId !== null || status === slot.attendanceStatus) return;
     setSavingId(slot.id);
     setError("");
     setSuccess("");
@@ -111,7 +112,8 @@ export default function TeacherAttendanceTab({ classId }) {
       ) : (
         <div className="space-y-2">
           {rows.map((slot) => {
-            const editable = Boolean(slot.assignedToMe) && hasStarted(slot, now);
+            const archived = slot.assignmentStatus === "CANCELLED";
+            const editable = !archived && Boolean(slot.assignedToMe) && hasStarted(slot, now);
             const saved = slot.attendanceStatus;
             const chosen = drafts[slot.id] ?? saved ?? "";
             const changed = chosen && chosen !== saved;
@@ -125,12 +127,18 @@ export default function TeacherAttendanceTab({ classId }) {
                     <div className="mt-1 text-xs text-slate-500">
                       {String(slot.date).slice(0, 10)} · {String(slot.startTime).slice(0, 5)}–{String(slot.endTime).slice(0, 5)}
                     </div>
+                    {archived && (
+                      <span className="mt-1 inline-block rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-700">
+                        Lịch sử giáo viên đã thay / buổi đã hủy — chỉ xem
+                      </span>
+                    )}
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-medium ${statusClass[saved] || "bg-slate-100 text-slate-600"}`}>
                     {statusText[saved] || "Chưa điểm danh"}
                   </span>
                 </div>
 
+                {!archived && (
                 <div className="mt-3 flex flex-wrap items-end gap-2">
                   <label className="min-w-36 flex-1 text-xs font-medium text-slate-600">
                     Trạng thái
@@ -156,17 +164,18 @@ export default function TeacherAttendanceTab({ classId }) {
                     {savingId === slot.id ? "Đang lưu..." : "Lưu điểm danh"}
                   </button>
                 </div>
+                )}
                 {saved && slot.recordedByName && (
                   <p className="mt-2 text-[11px] text-slate-500">
                     Xác nhận bởi: {slot.recordedByName}
                   </p>
                 )}
-                {!slot.assignedToMe && (
+                {!archived && !slot.assignedToMe && (
                   <p className="mt-2 text-[11px] text-amber-700">
                     Chỉ CS được CM phân công hỗ trợ buổi này mới có quyền điểm danh.
                   </p>
                 )}
-                {slot.assignedToMe && !hasStarted(slot, now) && (
+                {!archived && slot.assignedToMe && !hasStarted(slot, now) && (
                   <p className="mt-2 text-[11px] text-amber-700">
                     Chỉ có thể điểm danh khi buổi học đã bắt đầu.
                   </p>
