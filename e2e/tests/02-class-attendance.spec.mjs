@@ -103,6 +103,14 @@ test('create class, approve availability, staff the course and mark a past teach
   const attendanceUrl = '/classes/' + classId + '/teacher-attendance';
   const rows = await call('cs003', 'GET', attendanceUrl);
   expect(rows).toHaveLength(2);
+  // Explicit FE/BE contract check. Without this field, the older backend
+  // produces an enabled dropdown but the current save handler cannot mark.
+  // Fail immediately with a useful mismatch message instead of a 15s UI timeout.
+  for (const lesson of rows) {
+    expect(lesson.assignmentStatus,
+      'Incompatible BE: teacher-attendance rows must include assignmentStatus (ASSIGNED or CANCELLED)')
+      .toBe('ASSIGNED');
+  }
   const oldLesson = rows.find((x) => String(x.date).slice(0, 10) === past);
   const nextLesson = rows.find((x) => String(x.date).slice(0, 10) === future);
   expect(oldLesson?.assignedToMe).toBe(true);
@@ -136,8 +144,14 @@ test('create class, approve availability, staff the course and mark a past teach
   const select = page.locator('select[aria-label*="' + past + '"]');
   await expect(select).toBeEnabled();
   await select.selectOption('PRESENT');
-  await page.getByRole('button', { name: 'Lưu điểm danh' }).first().click();
-  await expect(page.getByText(/Đã lưu điểm danh giáo viên/)).toBeVisible();
+  const [initialSave] = await Promise.all([
+    page.waitForResponse((response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes(attendanceUrl + '/' + oldLesson.id)),
+    page.getByRole('button', { name: 'Lưu điểm danh' }).first().click(),
+  ]);
+  expect(initialSave.ok(), 'initial teacher attendance PUT must succeed').toBe(true);
+  await expect(page.getByRole('status')).toContainText('Đã lưu điểm danh giáo viên');
 
   // The persisted value must survive reload; correction updates one row.
   await page.reload();
