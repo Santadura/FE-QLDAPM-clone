@@ -17,7 +17,7 @@ concurrency:
 jobs:
   frontend-unit-build:
     name: FE unit, lint and build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
 
   full-stack-e2e:
     name: Real PostgreSQL + Spring Boot + browser E2E
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
