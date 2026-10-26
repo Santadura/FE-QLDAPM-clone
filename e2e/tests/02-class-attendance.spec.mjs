@@ -139,6 +139,9 @@ test('create class, approve availability, staff the course and mark a past teach
 
   // The persisted value must survive reload; correction updates one row.
   await page.reload();
+  // Class selection is local UI state, so select it again after refresh.
+  await page.getByRole('textbox', { name: 'Search classes' }).fill(code);
+  await page.getByText(code).first().click();
   await page.getByText('Điểm danh GV', { exact: true }).click();
   await expect(page.locator('select[aria-label*="' + past + '"]')).toHaveValue('PRESENT');
   await page.locator('select[aria-label*="' + past + '"]').selectOption('LATE');
