@@ -583,12 +583,26 @@ function ClassDetail({
               </Button>
             )}
             {nextStatus && onAdvanceStatus && (
-              <Button
-                className="w-full"
-                onClick={() => onAdvanceStatus(nextStatus)}
-              >
-                Move to {statusLabel(nextStatus)}
-              </Button>
+              <>
+                {nextStatus === "RUNNING" && (
+                  <p className="text-xs leading-5 text-slate-600">
+                    Trước khi bắt đầu lớp, TC phải phân công giáo viên và CM phải
+                    phân công CS hỗ trợ đầy đủ từng buổi trong lịch học.
+                  </p>
+                )}
+                {nextStatus === "COMPLETED" && (
+                  <p className="text-xs leading-5 text-slate-600">
+                    Trước khi hoàn thành lớp, các buổi đã diễn ra phải được CS
+                    điểm danh giáo viên; không được còn buổi học tương lai.
+                  </p>
+                )}
+                <Button
+                  className="w-full"
+                  onClick={() => onAdvanceStatus(nextStatus)}
+                >
+                  Move to {statusLabel(nextStatus)}
+                </Button>
+              </>
             )}
             {classItem.status === "CLOSED" && (
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500">
