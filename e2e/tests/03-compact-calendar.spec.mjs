@@ -68,6 +68,58 @@ async function registerFourShifts(request, employee, reviewer, day) {
   }
 }
 
+async function seedThreeAssignedShifts(request, day) {
+  const cs = await bearer(request, 'cs001');
+  const teacherReviewer = await bearer(request, 'tc001');
+  const cmReviewer = await bearer(request, 'cm001');
+  const code = 'QA-UI-' + Date.now().toString(36).toUpperCase().slice(-9);
+  const created = await request.post(api + '/classes', {
+    headers: cs,
+    data: {
+      courseId: 'course-ielts',
+      classCode: code,
+      name: 'Compact weekly scheduling UI ' + code,
+      startDate: day.iso,
+      endDate: day.iso,
+      targetRequirements: [{ targetType: 'OVERALL_BAND', requiredTarget: 5 }],
+      plannedSessions: shifts.slice(0, 3).map(([startTime, endTime]) => ({
+        date: day.iso, startTime, endTime,
+      })),
+    },
+  });
+  expect(created.ok(), 'create isolated 3-lesson test class').toBe(true);
+  const cls = await created.json();
+  const lessonsResponse = await request.get(
+    api + '/classes/' + cls.classId + '/planned-sessions',
+    { headers: cs },
+  );
+  expect(lessonsResponse.ok()).toBe(true);
+  const lessons = await lessonsResponse.json();
+  expect(lessons).toHaveLength(3);
+  const ready = await request.patch(api + '/classes/' + cls.classId + '/status', {
+    headers: cs, data: { status: 'READY' },
+  });
+  expect(ready.ok(), 'class must be READY for staff assignment').toBe(true);
+  for (const [reviewer, role, employee] of [
+    [teacherReviewer, 'TEACHER', 'teacher-003'],
+    [cmReviewer, 'CS', 'cs-003'],
+  ]) {
+    const assigned = await request.post(
+      api + '/class-planning/' + cls.classId + '/staffing',
+      { headers: reviewer, data: {
+        role, employeeId: employee,
+        campus: 'Cơ sở chính', workplaceId: 'center-01',
+        mode: 'FILL_EMPTY', scope: 'COURSE',
+        sessionIds: lessons.map((lesson) => lesson.id),
+      } },
+    );
+    const message = await assigned.text();
+    expect(assigned.ok(), 'assign three ' + role + ' shifts: ' + message).toBe(true);
+    expect(JSON.parse(message).createdCount).toBe(3);
+  }
+  return cls.classId;
+}
+
 async function checkRole(browser, username, route, employeeCode, day) {
   const context = await browser.newContext({
     timezoneId: 'Asia/Ho_Chi_Minh',
@@ -86,12 +138,13 @@ async function checkRole(browser, username, route, employeeCode, day) {
       .filter({ hasText: employeeCode }).first();
     await expect(row, 'person row: ' + employeeCode).toBeVisible();
 
-    // 3 visible chips + +1 button; the row never grows with the fourth item.
+    // Three assigned shifts are visible. Four availability records remain
+    // accessible via the +4 expander; none are silently discarded.
     const chips = row.locator('button[aria-label^="Xem lịch "]');
     await expect(chips).toHaveCount(3);
     await expect(row).toHaveCSS('height', '164px');
     const overflow = row.getByRole('button', {
-      name: new RegExp('Xem thêm 1 lịch .*' + day.iso),
+      name: new RegExp('Xem thêm 4 lịch .*' + day.iso),
     });
     await expect(overflow).toBeVisible();
     await overflow.click();
@@ -99,6 +152,8 @@ async function checkRole(browser, username, route, employeeCode, day) {
     const details = page.locator('section[aria-label^="Chi tiết lịch"]');
     await expect(details).toBeVisible();
     await expect(details.getByRole('button', { name: 'Chọn lịch rảnh' })).toHaveCount(4);
+    await expect(details.getByRole('button', { name: 'Hủy phân công' })).toHaveCount(3);
+    await expect(details.getByRole('button', { name: 'Đổi nhân sự' })).toHaveCount(3);
     await expect(details.getByRole('button', { name: 'Duyệt' })).toHaveCount(1);
     await expect(details.getByRole('button', { name: 'Từ chối' })).toHaveCount(1);
 
@@ -114,11 +169,12 @@ async function checkRole(browser, username, route, employeeCode, day) {
   }
 }
 
-test('CM and TC calendars keep a fixed-height row with four shifts, full details and review', async ({ browser, request }) => {
+test('CM and TC calendars compact three assigned shifts plus four availability records with detail actions', async ({ browser, request }) => {
   const day = targetDayWithinThisWeek();
   // Both screens fetch their data from the real availability API.
   await registerFourShifts(request, 'cs003', 'cm001', day);
   await registerFourShifts(request, 'teacher003', 'tc001', day);
+  await seedThreeAssignedShifts(request, day);
   await checkRole(browser, 'cm001', '/cm/assign-cs', 'CS-003', day);
   await checkRole(browser, 'tc001', '/tc/assign-teacher', 'GV-003', day);
 });
