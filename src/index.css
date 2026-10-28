@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* Hide native scrollbars while preserving wheel, touch and trackpad scrolling. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
