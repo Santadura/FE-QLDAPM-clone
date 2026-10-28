@@ -93,11 +93,6 @@ export function CompactDayAgenda({
     };
   }, [opened, openKey, items]);
 
-  function act(callback, ...args) {
-    close();
-    callback?.(...args);
-  }
-
   return (
     <div className="flex min-h-0 flex-col gap-1 overflow-hidden border-l border-slate-200 p-1.5">
       {!items.length ? (
@@ -144,10 +139,10 @@ export function CompactDayAgenda({
           <DayAgendaDetails
             name={name} date={date} items={visibleDetails} selectedKey={openKey}
             onClose={() => close(true)}
-            onChooseAvailability={(item) => act(onChooseAvailability, item)}
-            onReview={(item, status) => act(onReview, item, status)}
-            onReplace={(item) => act(onReplace, item)}
-            onCancel={(item) => act(onCancel, item)}
+            onChooseAvailability={onChooseAvailability}
+            onReview={onReview}
+            onReplace={onReplace}
+            onCancel={onCancel}
             replacementName={replacementName}
             replacementIsDifferent={replacementIsDifferent}
           />
