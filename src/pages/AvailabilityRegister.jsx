@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AvailabilityFormModal from "../features/availability/AvailabilityFormModal";
 import AvailabilityView from "../features/availability/AvailabilityView";
+import Modal from "../components/ui/Modal";
 import { emptyAvailabilityForm } from "../features/availability/mockAvailability";
 import { useAccountData } from "../features/accounts/hooks/useAccountData";
 import { schedulingApi } from "../services/api";
@@ -36,6 +37,8 @@ export default function AvailabilityRegister() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionMessage, setActionMessage] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
   const requestVersion = useRef(0);
@@ -125,24 +128,27 @@ export default function AvailabilityRegister() {
     }
   }
 
-  async function deleteAvailability(id) {
+  function deleteAvailability(id) {
     const target = slots.find((slot) => slot.id === id);
-    if (!target) return;
+    if (target) setDeleteTarget(target);
+  }
 
-    const accepted = window.confirm(
-      "Xóa lịch rảnh " + target.start + " – " + target.end + "?",
-    );
-    if (!accepted) return;
-
+  async function confirmDeleteAvailability() {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
     setError("");
     setActionMessage("");
 
     try {
-      await schedulingApi.removeAvailability(id);
+      await schedulingApi.removeAvailability(deleteTarget.id);
+      setDeleteTarget(null);
       setActionMessage("Đã xóa lịch rảnh.");
       await loadAvailability();
     } catch (requestError) {
+      setDeleteTarget(null);
       setError(requestError?.message || "Không thể xóa lịch rảnh.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -180,6 +186,36 @@ export default function AvailabilityRegister() {
           onClose={() => setEditing(undefined)}
           onSave={saveAvailability}
         />
+      )}
+
+      {deleteTarget && (
+        <Modal title="Xác nhận xóa lịch rảnh" onClose={() => {
+          if (!deleting) setDeleteTarget(null);
+        }}>
+          <div className="space-y-4 text-sm">
+            <p className="text-slate-700">
+              Bạn có chắc muốn xóa lịch rảnh này?
+            </p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="font-medium text-slate-900">
+                {deleteTarget.availableDate || deleteTarget.day}
+              </p>
+              <p className="mt-1 font-medium tabular-nums text-slate-700">
+                {deleteTarget.start}–{deleteTarget.end}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+              <button type="button" disabled={deleting} onClick={() => setDeleteTarget(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                Quay lại
+              </button>
+              <button type="button" disabled={deleting} onClick={confirmDeleteAvailability}
+                className="rounded-lg bg-rose-700 px-4 py-2 font-semibold text-white hover:bg-rose-800 disabled:opacity-50">
+                {deleting ? "Đang xóa..." : "Xác nhận xóa"}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </>
   );
