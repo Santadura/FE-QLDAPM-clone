@@ -46,6 +46,8 @@ export default function StudentResultModal({
   );
   const [score, setScore] = useState(initialResult?.score ?? "");
   const [feedback, setFeedback] = useState(initialResult?.feedback ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const activity = activities.find((item) => item.value === activityValue);
 
@@ -72,21 +74,29 @@ export default function StudentResultModal({
     loadExisting(studentId, value);
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    if (!studentId || !activity) return;
-    onSave({
-      studentId,
-      classId: classItem.id,
-      assignmentId: activity.assignmentId,
-      examId: activity.examId,
-      score,
-      feedback,
-    });
+    if (!studentId || !activity || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({
+        studentId,
+        classId: classItem.id,
+        assignmentId: activity.assignmentId,
+        examId: activity.examId,
+        score,
+        feedback,
+      });
+    } catch (err) {
+      setError(err?.message || "Không thể lưu kết quả học tập.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <Modal title="Record Student Result" onClose={onClose} maxWidth="max-w-lg">
+    <Modal title="Record Student Result" onClose={() => { if (!saving) onClose(); }} maxWidth="max-w-lg">
       <form onSubmit={submit} className="grid gap-3.5">
         <label className="grid gap-1.5 text-[13px] font-medium">
           Student
@@ -149,14 +159,15 @@ export default function StudentResultModal({
           </p>
         )}
 
+        {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-xs text-red-700">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" onClick={onClose}>Cancel</Button>
+          <Button type="button" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button
             type="submit"
             variant="primary"
-            disabled={!students.length || !activities.length}
+            disabled={!students.length || !activities.length || saving}
           >
-            Save Result
+            {saving ? "Đang lưu..." : "Save Result"}
           </Button>
         </div>
       </form>
