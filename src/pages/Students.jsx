@@ -189,10 +189,7 @@ export default function Students({ role }) {
       ? await updateStudent(editing.id, form)
       : await addStudent(form);
 
-    if (!result.ok) {
-      setMessage(result.reason);
-      return;
-    }
+    if (!result.ok) throw new Error(result.reason || "Không thể lưu học sinh.");
 
     const id = editing?.id ?? result.student?.id;
     if (id) setSelectedId(id);
