@@ -174,7 +174,7 @@ async function checkRole(browser, username, route, employeeCode, day) {
     await details.getByRole('button', { name: 'Hủy phân công' }).first().click();
     const confirmation = page.getByRole('dialog', { name: 'Xác nhận hủy phân công' });
     await expect(confirmation).toBeVisible();
-    await confirmation.getByRole('button', { name: 'Xác nhận hủy' }).click();
+    await confirmation.getByRole('button', { name: 'Xác nhận hủy', exact: true }).click();
     await expect(confirmation).toHaveCount(0);
     await expect(details).toHaveCount(0);
     // The UI now uses a floating popover instead of the previous sidebar.
