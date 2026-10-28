@@ -165,6 +165,11 @@ async function checkRole(browser, username, route, employeeCode, day) {
     await expect(details.getByRole('button', { name: 'Duyệt' })).toHaveCount(0);
     await expect(details.getByRole('button', { name: 'Chọn lịch rảnh' })).toHaveCount(4);
     await details.getByRole('button', { name: 'Chọn lịch rảnh' }).first().click();
+    // Cancel just one of the three independently assigned lessons through
+    // the real BE; the remaining two assignments must stay intact.
+    page.once('dialog', (dialog) => dialog.accept());
+    await details.getByRole('button', { name: 'Hủy phân công' }).first().click();
+    await expect(details.getByRole('button', { name: 'Hủy phân công' })).toHaveCount(2);
     await details.getByRole('button', { name: 'Đóng chi tiết lịch' }).click();
     await expect(details).toHaveCount(0);
     await expect(row).toHaveCSS('height', '164px');
