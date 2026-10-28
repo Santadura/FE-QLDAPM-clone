@@ -67,7 +67,7 @@ test('Admin adds/removes class roster, detects overlapping classes, confirms stu
   const assignDialog = page.getByRole('dialog', { name: 'Thêm học sinh vào lớp' });
   await expect(assignDialog).toBeVisible();
   await assignDialog.locator('select').selectOption(second.classId, { timeout: 15000 });
-  await expect(assignDialog.getByText('Không đủ điều kiện')).toBeVisible();
+  await expect(assignDialog.getByText('Không đủ điều kiện', { exact: true }).first()).toBeVisible();
   await expect(assignDialog.getByRole('button', { name: 'Thêm vào lớp' })).toBeDisabled();
   await assignDialog.getByRole('button', { name: 'Quay lại' }).click();
 
