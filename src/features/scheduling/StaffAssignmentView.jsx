@@ -13,6 +13,7 @@ import {
 import Button from "../../components/ui/Button";
 import RangeStaffingPanel from "./RangeStaffingPanel";
 import { CompactDayAgenda } from "./CompactDayAgenda";
+import AssignmentConfirmDialog from "./AssignmentConfirmDialog";
 import { buildDayAgenda } from "./dayAgenda";
 import { schedulingApi } from "../../services/api";
 import { classApi } from "../../services/classApi";
@@ -85,6 +86,8 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
     classId: "",
   });
   const [message, setMessage] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const staffWeekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
 
@@ -374,8 +377,20 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
     }
   }
 
-  async function cancelStaffAssignment(schedule) {
-    if (!window.confirm("Hủy phân công nhân sự của buổi này?")) return;
+  function cancelStaffAssignment(schedule) {
+    setConfirmAction({ kind: "cancel", schedule });
+  }
+
+  function replaceStaff(schedule) {
+    if (!selectedStaff || schedule.employeeId === selectedStaff.id) return;
+    setConfirmAction({
+      kind: "replace", schedule,
+      targetId: selectedStaff.id,
+      targetName: selectedStaff.fullName,
+    });
+  }
+
+  async function performCancelStaffAssignment(schedule) {
     try {
       await schedulingApi.cancelStaff(schedule.id);
       setMessage({ type: "success", text: "Đã hủy phân công; lịch sử được giữ lại." });
@@ -385,9 +400,7 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
     }
   }
 
-  async function replaceStaff(schedule) {
-    if (!selectedStaff || schedule.employeeId === selectedStaff.id) return;
-    if (!window.confirm("Đổi nhân viên ca này sang nhân viên đang chọn?")) return;
+  async function performReplaceStaff(schedule, targetId) {
     try {
       if (role === "CS" && schedule.workType === "CLASS_SUPPORT" && schedule.classId) {
         const sessions = await classApi.plannedSessions(schedule.classId);
@@ -395,21 +408,37 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
           slot.status === "PLANNED" && planKey(slot) === planKey(schedule));
         if (!lesson) throw new Error("Không tìm thấy buổi hỗ trợ lớp đang hoạt động.");
         await classApi.assignStaffingRange(schedule.classId, {
-          role: "CS", employeeId: selectedStaff.id,
+          role: "CS", employeeId: targetId,
           workplaceId: schedule.workplaceId || form.workplaceId,
           mode: "REPLACE", sessionIds: [lesson.id],
         });
       } else {
         await schedulingApi.updateStaff(schedule.id, {
-          employeeId:selectedStaff.id,staffRole:role,workplaceId:schedule.workplaceId,
-          classId:schedule.classId || null,date:schedule.date,
-          startTime:schedule.startTime,endTime:schedule.endTime,workType:schedule.workType,
+          employeeId: targetId, staffRole: role, workplaceId: schedule.workplaceId,
+          classId: schedule.classId || null, date: schedule.date,
+          startTime: schedule.startTime, endTime: schedule.endTime, workType: schedule.workType,
         });
       }
       setMessage({ type: "success", text: "Đã thay nhân sự buổi này, giữ nguyên lịch cũ trong lịch sử." });
       await loadData();
     } catch (error) {
       setMessage({ type: "error", text: error.message || "Không đổi được nhân sự." });
+    }
+  }
+
+  async function confirmAssignmentAction() {
+    if (!confirmAction || confirmBusy) return;
+    const pending = confirmAction;
+    setConfirmBusy(true);
+    try {
+      if (pending.kind === "cancel") {
+        await performCancelStaffAssignment(pending.schedule);
+      } else {
+        await performReplaceStaff(pending.schedule, pending.targetId);
+      }
+      setConfirmAction(null);
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
@@ -510,11 +539,14 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
         </div>
       )}
 
-      <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_370px]">
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
+      <div className={isSale
+        ? "grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_370px]"
+        : "grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_350px]"}>
+        <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className={isSale ? "overflow-x-auto" : "max-h-[min(72vh,760px)] overflow-auto overscroll-contain"}>
             <div className="min-w-[1000px]">
-              <div className="grid grid-cols-[200px_repeat(7,minmax(112px,1fr))] border-b border-slate-200 bg-slate-50">
+              <div className={(isSale ? "" : "sticky top-0 z-10 ") +
+                "grid grid-cols-[200px_repeat(7,minmax(112px,1fr))] border-b border-slate-200 bg-slate-50"}>
                 <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   {isSale ? "Sale" : "CS"}
                 </div>
@@ -698,7 +730,9 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
           </div>
         </section>
 
-        <aside className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <aside className={isSale
+          ? "rounded-lg border border-slate-200 bg-white shadow-sm"
+          : "min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto"}>
           <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
             <BriefcaseBusiness size={17} className="text-blue-600" />
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
@@ -927,6 +961,14 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
           </div>
         </aside>
       </div>
+      <AssignmentConfirmDialog
+        action={confirmAction}
+        personName={staff.find((person) => person.id === confirmAction?.schedule.employeeId)?.fullName}
+        classCode={classes.find((item) => item.id === confirmAction?.schedule.classId)?.classCode}
+        busy={confirmBusy}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={confirmAssignmentAction}
+      />
     </div>
   );
 }
