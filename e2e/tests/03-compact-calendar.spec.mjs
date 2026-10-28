@@ -53,9 +53,10 @@ async function registerFourShifts(request, employee, reviewer, day) {
         note: 'compact week UI regression',
       },
     });
+    const responseText = await created.text();
     expect(created.status(), employee + ' create ' + startTime +
-      ': ' + await created.text()).toBe(201);
-    const slot = await created.json().catch(() => null);
+      ': ' + responseText).toBe(201);
+    const slot = JSON.parse(responseText);
     // Leave the last shift pending so the expanded panel can approve it.
     if (index < shifts.length - 1) {
       const reviewed = await request.patch(
@@ -70,6 +71,7 @@ async function registerFourShifts(request, employee, reviewer, day) {
 async function checkRole(browser, username, route, employeeCode, day) {
   const context = await browser.newContext({
     timezoneId: 'Asia/Ho_Chi_Minh',
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:5173',
     viewport: { width: 1440, height: 900 },
   });
   const page = await context.newPage();
@@ -85,9 +87,8 @@ async function checkRole(browser, username, route, employeeCode, day) {
     await expect(row, 'person row: ' + employeeCode).toBeVisible();
 
     // 3 visible chips + +1 button; the row never grows with the fourth item.
-    const chips = row.locator('button[aria-label^="Xem lịch "]')
-      .filter({ has: page.locator('span') });
-    await expect(chips.filter({ hasText: /08:30|11:30|14:00|18:00/ })).toHaveCount(3);
+    const chips = row.locator('button[aria-label^="Xem lịch "]');
+    await expect(chips).toHaveCount(3);
     await expect(row).toHaveCSS('height', '164px');
     const overflow = row.getByRole('button', {
       name: new RegExp('Xem thêm 1 lịch .*' + day.iso),
