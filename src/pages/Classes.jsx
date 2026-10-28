@@ -110,6 +110,11 @@ export default function Classes({ role }) {
   }, [scopedClasses, search, course, status, teachingSchedules]);
 
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > lastPage) setPage(lastPage);
+  }, [page, filtered.length]);
   const selected =
     scopedClasses.find((classItem) => classItem.id === selectedId) ?? null;
   const canManageSelected =
@@ -339,10 +344,7 @@ export default function Classes({ role }) {
           : await addAssignment(data);
     }
 
-    if (result?.ok === false) {
-      setMessage(result.reason);
-      return;
-    }
+    if (result?.ok === false) throw new Error(result.reason || "Không thể lưu hoạt động học tập.");
 
     const kind = editingActivity?.kind ?? activityType;
     const wasEditing = Boolean(editingActivity);
@@ -395,10 +397,7 @@ export default function Classes({ role }) {
     if (!canTeach) return;
 
     const result = await upsertStudentResult(data);
-    if (result?.ok === false) {
-      setMessage(result.reason);
-      return;
-    }
+    if (result?.ok === false) throw new Error(result.reason || "Không thể lưu kết quả học tập.");
 
     setGrading(false);
     setMessage("Student result and feedback saved.");
