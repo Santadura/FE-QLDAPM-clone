@@ -72,12 +72,15 @@ export function CompactDayAgenda({
     const onOutsidePointerDown = (event) => {
       if (triggerRef.current?.contains(event.target) ||
           popupRef.current?.contains(event.target)) return;
-      close();
+      setOpenKey(null);
+      setPosition(null);
     };
     const onKeyDown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        close(true);
+        triggerRef.current?.focus({ preventScroll: true });
+        setOpenKey(null);
+        setPosition(null);
       }
     };
     updatePosition();
