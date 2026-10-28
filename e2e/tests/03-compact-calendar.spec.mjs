@@ -156,6 +156,10 @@ async function checkRole(browser, username, route, employeeCode, day) {
     await expect(details.getByRole('button', { name: 'Đổi nhân sự' })).toHaveCount(3);
     await expect(details.getByRole('button', { name: 'Duyệt' })).toHaveCount(1);
     await expect(details.getByRole('button', { name: 'Từ chối' })).toHaveCount(1);
+    await page.screenshot({
+      path: 'e2e/artifacts/' + username + '-compact-week.png',
+      fullPage: true,
+    });
 
     await details.getByRole('button', { name: 'Duyệt' }).click();
     await expect(details.getByRole('button', { name: 'Duyệt' })).toHaveCount(0);
