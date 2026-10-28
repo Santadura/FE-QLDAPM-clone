@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import RangeStaffingPanel from "./RangeStaffingPanel";
-import { CompactDayAgenda, DayAgendaDetails } from "./CompactDayAgenda";
+import { CompactDayAgenda } from "./CompactDayAgenda";
 import { buildDayAgenda } from "./dayAgenda";
 import { schedulingApi } from "../../services/api";
 import { classApi } from "../../services/classApi";
@@ -85,7 +85,6 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
     classId: "",
   });
   const [message, setMessage] = useState(null);
-  const [agendaSelection, setAgendaSelection] = useState(null);
 
   const staffWeekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
 
@@ -414,22 +413,6 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
     }
   }
 
-  const detailDay = staffWeekDays.find((day) => day.date === agendaSelection?.date);
-  const detailStaff = staff.find((person) => person.id === agendaSelection?.personId);
-  const detailEntries = !isSale && detailDay && detailStaff ? buildDayAgenda(
-    staffAvailability.filter((item) =>
-      item.employeeId === detailStaff.id && item.staffRole === "CS" &&
-      item.day === detailDay.key && (!item.availableDate || item.availableDate === detailDay.date)),
-    staffSchedules.filter((item) =>
-      item.employeeId === detailStaff.id && item.staffRole === "CS" &&
-      item.date === detailDay.date && item.status === "ASSIGNED"),
-    (item) => {
-      const workType = getWorkTypeLabel("CS", item.workType);
-      const classCode = classes.find((cls) => cls.id === item.classId)?.classCode;
-      return classCode ? workType + " · " + classCode : workType;
-    },
-  ) : [];
-
   return (
     <div className="space-y-4 font-sans text-[13px] leading-5 text-slate-800 antialiased">
       <section className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-start xl:justify-between">
@@ -679,12 +662,12 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
                         )}
                         name={person.fullName}
                         date={day.date}
-                        active={agendaSelection?.personId === person.id && agendaSelection?.date === day.date}
-                        onOpen={(selectedKey) => setAgendaSelection({
-                          personId: person.id,
-                          date: day.date,
-                          selectedKey,
-                        })}
+                        onChooseAvailability={(item) => selectAvailability(person, item)}
+                        onReview={reviewSlot}
+                        onReplace={replaceStaff}
+                        onCancel={cancelStaffAssignment}
+                        replacementName={selectedStaff?.fullName}
+                        replacementIsDifferent={Boolean(selectedUserId && selectedUserId !== person.id)}
                       />
                     );
                   })}
@@ -724,21 +707,6 @@ export default function StaffAssignmentView({ staffRole = "SALE" }) {
           </div>
 
           <div className="space-y-4 p-4">
-            {!isSale && detailDay && detailStaff && (
-              <DayAgendaDetails
-                name={detailStaff.fullName}
-                date={detailDay.date}
-                items={detailEntries}
-                selectedKey={agendaSelection?.selectedKey}
-                onClose={() => setAgendaSelection(null)}
-                onChooseAvailability={(item) => selectAvailability(detailStaff, item)}
-                onReview={reviewSlot}
-                onReplace={replaceStaff}
-                onCancel={cancelStaffAssignment}
-                replacementName={selectedStaff?.fullName}
-                replacementIsDifferent={Boolean(selectedUserId && selectedUserId !== detailStaff.id)}
-              />
-            )}
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
               <span className="mb-1 block text-[11px] uppercase tracking-wide text-slate-400">
                 Nhân viên đã chọn
