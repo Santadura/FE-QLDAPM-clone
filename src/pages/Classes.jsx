@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ClassesView from "../features/classes/ClassesView";
 import ClassFormModal from "../features/classes/ClassFormModal";
+import ConfirmActionModal from "../components/ui/ConfirmActionModal";
 import SupportOverrideModal from "../features/classes/SupportOverrideModal";
 import AddClassStudentsModal from "../features/classes/AddClassStudentsModal";
 import TeachingActivityModal from "../features/classes/TeachingActivityModal";
@@ -68,6 +69,9 @@ export default function Classes({ role }) {
   const [editingActivity, setEditingActivity] = useState(null);
   const [grading, setGrading] = useState(false);
   const [message, setMessage] = useState("");
+  const [pendingAction, setPendingAction] = useState(null);
+  const [actionError, setActionError] = useState("");
+  const [actionBusy, setActionBusy] = useState(false);
 
   // Refresh the role-scoped roster and staff assignments when returning to
   // Classes from TC/CM screens in the same authenticated layout.
@@ -246,16 +250,30 @@ export default function Classes({ role }) {
     return true;
   }
 
-  async function advanceStatus(nextStatus) {
+  function advanceStatus(nextStatus) {
     if (!selected || !canManageSelected) return;
+    setActionError("");
+    setPendingAction({ kind: "status", classId: selected.id, classCode: selected.classCode, nextStatus });
+  }
 
-    const result = await advanceClassStatus(selected.id, nextStatus);
-    if (!result.ok) {
-      setMessage(result.reason);
-      return;
+  async function applyPendingAction() {
+    if (!pendingAction || actionBusy) return;
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const result = pendingAction.kind === "status"
+        ? await advanceClassStatus(pendingAction.classId, pendingAction.nextStatus)
+        : await removeStudentFromClass(pendingAction.studentId, pendingAction.classId);
+      if (!result?.ok) throw new Error(result?.reason || "Thao tác thất bại.");
+      setPendingAction(null);
+      setMessage(pendingAction.kind === "status"
+        ? `Đã chuyển lớp ${pendingAction.classCode} sang ${pendingAction.nextStatus}.`
+        : `Đã đưa ${pendingAction.studentName} ra khỏi danh sách đang học. Lịch sử được giữ lại.`);
+    } catch (error) {
+      setActionError(error?.message || "Không thể hoàn tất thao tác.");
+    } finally {
+      setActionBusy(false);
     }
-
-    setMessage("");
   }
 
   async function confirmSupportOverride({
@@ -284,30 +302,26 @@ export default function Classes({ role }) {
   }
 
   async function addStudents(ids) {
-    if (!selected || !canManageStudents) return;
-
+    if (!selected || !canModifySelectedRoster) return false;
     const result = await assignStudentsToClass(ids, selected.id);
-    if (!result.ok) {
-      setMessage(result.reason);
-      return;
-    }
-
+    if (!result?.ok) throw new Error(result?.reason || "Không thể thêm học sinh vào lớp.");
     setAddingStudents(false);
-    setMessage(`${result.added} student(s) added to ${selected.classCode}.`);
+    setMessage(`Đã thêm ${result.added} học sinh vào lớp ${selected.classCode}.`);
+    return true;
   }
 
-  async function removeStudent(studentId) {
-    if (!selected || !canManageStudents) return;
-
-    const result = await removeStudentFromClass(studentId, selected.id);
-    if (!result?.ok) {
-      setMessage(result?.reason ?? "Unable to remove student from class.");
-      return;
-    }
-
-    setMessage(
-      "Student removed from the active roster. Membership history was preserved.",
-    );
+  function removeStudent(studentId) {
+    if (!selected || !canModifySelectedRoster) return;
+    const student = selectedStudents.find((item) => item.id === studentId);
+    if (!student) return;
+    setActionError("");
+    setPendingAction({
+      kind: "removeStudent",
+      classId: selected.id,
+      classCode: selected.classCode,
+      studentId,
+      studentName: student.fullName,
+    });
   }
 
   async function saveActivity(data) {
@@ -549,6 +563,29 @@ export default function Classes({ role }) {
         auditLogs={selectedAuditLogs}
         message={message || loadError}
       />
+
+      {pendingAction && (
+        <ConfirmActionModal
+          title={pendingAction.kind === "status" ? "Xác nhận chuyển trạng thái lớp" : "Xác nhận đưa học sinh ra khỏi lớp"}
+          description={pendingAction.kind === "status"
+            ? ({
+                READY: "Lớp cần có lịch học dự kiến trước khi chuyển sang Sẵn sàng.",
+                RUNNING: "Tất cả buổi học phải có giáo viên và CS hỗ trợ. Sau khi bắt đầu, các thay đổi lịch phải dùng quy trình điều chỉnh riêng.",
+                COMPLETED: "Không được còn buổi tương lai, thiếu điểm danh giáo viên hoặc hoạt động học tập chưa hoàn tất.",
+                CLOSED: "Lớp sau khi đóng sẽ chỉ đọc. Bạn không thể chỉnh sửa hoặc mở lại từ giao diện.",
+              }[pendingAction.nextStatus] || "Bạn xác nhận chuyển trạng thái lớp?")
+            : "Học sinh sẽ không còn thuộc danh sách đang học của lớp. Lịch sử học tập được giữ lại; thêm lại cần kiểm tra điều kiện từ đầu."}
+          detail={pendingAction.kind === "status"
+            ? `${pendingAction.classCode} → ${pendingAction.nextStatus}`
+            : `${pendingAction.studentName} · ${pendingAction.classCode}`}
+          confirmLabel={pendingAction.kind === "status" ? "Chuyển trạng thái" : "Đưa ra khỏi lớp"}
+          destructive={pendingAction.kind !== "status" || pendingAction.nextStatus === "CLOSED"}
+          busy={actionBusy}
+          error={actionError}
+          onClose={() => { setPendingAction(null); setActionError(""); }}
+          onConfirm={applyPendingAction}
+        />
+      )}
 
       {editing !== undefined && (
         <ClassFormModal
