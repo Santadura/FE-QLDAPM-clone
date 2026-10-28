@@ -140,7 +140,11 @@ async function checkRole(browser, username, route, employeeCode, day) {
 
     // Three assigned shifts are visible. Four availability records remain
     // accessible via the +4 expander; none are silently discarded.
-    const chips = row.locator('button[aria-label^="Xem lịch "]');
+    // Other days in this person's week may have valid seeded availability.
+    // Scope the 3-chip assertion to the specific test date, not the whole row.
+    const chips = row.getByRole('button', {
+      name: new RegExp('^Xem lịch .* ' + day.iso + ' '),
+    });
     await expect(chips).toHaveCount(3);
     await expect(row).toHaveCSS('height', '164px');
     const overflow = row.getByRole('button', {
