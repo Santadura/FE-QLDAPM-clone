@@ -144,8 +144,8 @@ export function CompactDayAgenda({
             onClose={() => close(true)}
             onChooseAvailability={onChooseAvailability}
             onReview={onReview}
-            onReplace={onReplace}
-            onCancel={onCancel}
+            onReplace={(item) => { close(); onReplace?.(item); }}
+            onCancel={(item) => { close(); onCancel?.(item); }}
             replacementName={replacementName}
             replacementIsDifferent={replacementIsDifferent}
           />
