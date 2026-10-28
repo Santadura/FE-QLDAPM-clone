@@ -171,8 +171,17 @@ async function checkRole(browser, username, route, employeeCode, day) {
     await details.getByRole('button', { name: 'Chọn lịch rảnh' }).first().click();
     // Cancel just one of the three independently assigned lessons through
     // the real BE; the remaining two assignments must stay intact.
-    page.once('dialog', (dialog) => dialog.accept());
     await details.getByRole('button', { name: 'Hủy phân công' }).first().click();
+    const confirmation = page.getByRole('dialog', { name: 'Xác nhận hủy phân công' });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole('button', { name: 'Xác nhận hủy' }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(details).toHaveCount(0);
+    // The UI now uses a floating popover instead of the previous sidebar.
+    // After one cancellation, two assignments + four available slots remain.
+    await row.getByRole('button', {
+      name: new RegExp('Xem thêm 3 lịch .*' + day.iso),
+    }).click();
     await expect(details.getByRole('button', { name: 'Hủy phân công' })).toHaveCount(2);
     await details.getByRole('button', { name: 'Đóng chi tiết lịch' }).click();
     await expect(details).toHaveCount(0);
