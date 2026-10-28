@@ -513,7 +513,7 @@ export default function TeacherAssignmentView() {
 
       <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_350px]">
         <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="max-h-[min(72vh,760px)] overflow-auto overscroll-contain">
+          <div className="scrollbar-hidden max-h-[min(72vh,760px)] overflow-auto overscroll-contain">
             <div className="min-w-[980px]">
               <div className="sticky top-0 z-10 grid grid-cols-[190px_repeat(7,minmax(112px,1fr))] border-b border-slate-200 bg-slate-50">
                 <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
@@ -607,7 +607,7 @@ export default function TeacherAssignmentView() {
           </div>
         </section>
 
-        <aside className="min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
+        <aside className="scrollbar-hidden min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
           <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
             <UserCheck size={17} className="text-blue-600" />
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
