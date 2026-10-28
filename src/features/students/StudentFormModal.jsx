@@ -22,6 +22,9 @@ export default function StudentFormModal({
       : emptyForm,
   );
 
+  const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
   function update(event) {
     setForm((current) => ({
       ...current,
@@ -42,15 +45,24 @@ export default function StudentFormModal({
     }));
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    onSave(form);
+    if (saving) return;
+    setSubmitError("");
+    setSaving(true);
+    try {
+      await onSave(form);
+    } catch (error) {
+      setSubmitError(error?.message || "Không thể lưu học sinh.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <Modal
       title={student ? "Edit Student" : "Add Student"}
-      onClose={onClose}
+      onClose={() => { if (!saving) onClose(); }}
       maxWidth="max-w-2xl"
     >
       <form onSubmit={submit} className="grid gap-3.5">
@@ -168,12 +180,13 @@ export default function StudentFormModal({
           the workflow and are audited separately.
         </div>
 
+        {submitError && <p role="alert" className="rounded-md bg-red-50 p-3 text-xs text-red-700">{submitError}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" onClick={onClose}>
+          <Button type="button" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary">
-            {student ? "Save Changes" : "Add Student"}
+          <Button type="submit" variant="primary" disabled={saving}>
+            {saving ? "Đang lưu..." : student ? "Save Changes" : "Add Student"}
           </Button>
         </div>
       </form>

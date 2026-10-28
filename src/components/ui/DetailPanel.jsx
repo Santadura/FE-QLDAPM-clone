@@ -11,7 +11,7 @@ export default function DetailPanel({
 }) {
   return (
     <aside
-      className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-800 shadow-sm"
+      className="flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-800 shadow-sm xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)]"
       aria-label={title}
     >
       <div className="flex min-h-12 items-center justify-between border-b border-slate-200 px-4">
@@ -30,7 +30,7 @@ export default function DetailPanel({
 
       {tabs.length > 0 && (
         <div
-          className="flex min-w-0 flex-wrap items-center gap-x-4 border-b border-slate-200 px-4 py-1"
+          className="scrollbar-hidden flex min-w-0 shrink-0 flex-nowrap items-center gap-x-4 overflow-x-auto border-b border-slate-200 px-4 py-1"
           role="tablist"
           aria-label={`${title} sections`}
         >
@@ -61,10 +61,10 @@ export default function DetailPanel({
         </div>
       )}
 
-      <div className="min-w-0 flex-1 p-4">{children}</div>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4">{children}</div>
 
       {footer && (
-        <div className="border-t border-slate-200 bg-slate-50/70 p-3">
+        <div className="shrink-0 border-t border-slate-200 bg-slate-50/70 p-3">
           {footer}
         </div>
       )}

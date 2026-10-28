@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+/* Hide native scrollbars while preserving wheel, touch and trackpad scrolling. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+ * Native scroll indicators are hidden application-wide by design.
+ * Do not set overflow: hidden here: vertical and horizontal scrolling,
+ * keyboard navigation, wheel/trackpad gestures, and touch must keep working.
+ * This includes the document viewport, detail panels, tables, modal bodies,
+ * side navigation, and nested lesson/student lists.
+ */
+html,
+body,
+body * {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+body *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}

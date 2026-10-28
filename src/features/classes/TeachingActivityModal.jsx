@@ -31,6 +31,9 @@ export default function TeachingActivityModal({
         },
   );
 
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   function update(event) {
     setForm((current) => ({
       ...current,
@@ -38,18 +41,27 @@ export default function TeachingActivityModal({
     }));
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    onSave({
-      ...form,
-      ...(isExam ? { duration: Number(form.duration) } : {}),
-    });
+    if (saving) return;
+    setError("");
+    setSaving(true);
+    try {
+      await onSave({
+        ...form,
+        ...(isExam ? { duration: Number(form.duration) } : {}),
+      });
+    } catch (err) {
+      setError(err?.message || "Không thể lưu hoạt động học tập.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <Modal
       title={`${isEditing ? "Edit" : "Create"} ${isExam ? "Exam" : "Assignment"}`}
-      onClose={onClose}
+      onClose={() => { if (!saving) onClose(); }}
       maxWidth="max-w-lg"
     >
       <form onSubmit={submit} className="grid gap-3.5">
@@ -130,12 +142,13 @@ export default function TeachingActivityModal({
           </p>
         )}
 
+        {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-xs text-red-700">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" onClick={onClose}>
+          <Button type="button" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="submit" variant="primary">
-            {isEditing
+          <Button type="submit" variant="primary" disabled={saving}>
+            {saving ? "Đang lưu..." : isEditing
               ? `Save ${isExam ? "Exam" : "Assignment"}`
               : `Create ${isExam ? "Exam" : "Assignment"}`}
           </Button>

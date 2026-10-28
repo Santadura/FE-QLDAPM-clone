@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StudentsView from "../features/students/StudentsView";
 import StudentFormModal from "../features/students/StudentFormModal";
+import ConfirmActionModal from "../components/ui/ConfirmActionModal";
 import AssignStudentsModal from "../features/students/AssignStudentsModal";
 import { PAGE_SIZE, emptyForm } from "../features/students/mockStudents";
 import { courseTargetDefinitions } from "../features/academic/targetEligibility";
@@ -24,6 +25,7 @@ export default function Students({ role }) {
     deleteStudent,
     changeStudentStatus,
     getStudentClassEligibility,
+    getClassStudentCandidates,
     assignStudentsToClass,
   } = useAcademicData();
 
@@ -56,6 +58,9 @@ export default function Students({ role }) {
   const [editing, setEditing] = useState(undefined);
   const [assigning, setAssigning] = useState(false);
   const [message, setMessage] = useState("");
+  const [pendingAction, setPendingAction] = useState(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const filtered = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -82,6 +87,11 @@ export default function Students({ role }) {
   }, [students, search, status, classFilter, classStudents]);
 
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > lastPage) setPage(lastPage);
+  }, [page, filtered.length]);
   const selected =
     students.find((student) => student.id === selectedId) ?? null;
 
@@ -184,10 +194,7 @@ export default function Students({ role }) {
       ? await updateStudent(editing.id, form)
       : await addStudent(form);
 
-    if (!result.ok) {
-      setMessage(result.reason);
-      return;
-    }
+    if (!result.ok) throw new Error(result.reason || "Không thể lưu học sinh.");
 
     const id = editing?.id ?? result.student?.id;
     if (id) setSelectedId(id);
@@ -196,40 +203,50 @@ export default function Students({ role }) {
     setMessage("");
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     if (!selected || !canManage) return;
-
-    const confirmed = window.confirm(
-      `Delete ${selected.fullName}? Hard delete is only allowed when the student has never belonged to a class and has no academic results.`,
-    );
-    if (!confirmed) return;
-
-    const result = await deleteStudent(selected.id);
-    if (!result.ok) {
-      setMessage(result.reason);
-      return;
-    }
-
-    setSelectedId(null);
-    setChecked((current) => current.filter((id) => id !== selected.id));
-    setMessage("");
+    setActionError("");
+    setPendingAction({ kind: "delete", studentId: selected.id, studentName: selected.fullName });
   }
 
-  async function handleStatusChange(nextStatus) {
+  function handleStatusChange(nextStatus) {
     if (!selected || !canManage) return;
+    const activeClasses = classStudents.filter((membership) =>
+      membership.studentId === selected.id && membership.status === "ACTIVE" &&
+      classes.some((item) => item.id === membership.classId &&
+        ["DRAFT", "READY", "RUNNING"].includes(item.status))
+    ).length;
+    setActionError("");
+    setPendingAction({
+      kind: "status", studentId: selected.id, studentName: selected.fullName,
+      nextStatus, activeClasses,
+    });
+  }
 
-    const result = await changeStudentStatus(selected.id, nextStatus);
-    if (!result.ok) {
-      setMessage(result.reason);
-      return;
+  async function applyPendingAction() {
+    if (!pendingAction || actionBusy) return;
+    setActionBusy(true);
+    setActionError("");
+    try {
+      const result = pendingAction.kind === "delete"
+        ? await deleteStudent(pendingAction.studentId)
+        : await changeStudentStatus(pendingAction.studentId, pendingAction.nextStatus);
+      if (!result?.ok) throw new Error(result?.reason || "Không thể cập nhật học sinh.");
+      if (pendingAction.kind === "delete") {
+        setSelectedId(null);
+        setChecked((current) => current.filter((id) => id !== pendingAction.studentId));
+        setMessage("Đã xóa hồ sơ học sinh chưa có lịch sử học tập.");
+      } else {
+        const affected = result.deactivatedClassIds?.length ?? 0;
+        setMessage(`Đã cập nhật trạng thái học sinh thành ${pendingAction.nextStatus}.` +
+          (affected ? ` ${affected} quan hệ lớp đang học đã bị vô hiệu hóa; không tự khôi phục khi kích hoạt lại.` : ""));
+      }
+      setPendingAction(null);
+    } catch (error) {
+      setActionError(error?.message || "Thao tác không thành công.");
+    } finally {
+      setActionBusy(false);
     }
-
-    const affected = result.deactivatedClassIds?.length ?? 0;
-    setMessage(
-      affected
-        ? `Student status changed to ${nextStatus}. ${affected} active class membership(s) were deactivated and will not be restored automatically.`
-        : `Student status changed to ${nextStatus}.`,
-    );
   }
 
   async function assignSelected(classId) {
@@ -240,14 +257,11 @@ export default function Students({ role }) {
         : [];
 
     const result = await assignStudentsToClass(ids, classId);
-    if (!result.ok) {
-      setMessage(result.reason);
-      return;
-    }
-
+    if (!result.ok) throw new Error(result.reason || "Không thể thêm học sinh vào lớp.");
     setAssigning(false);
     setChecked([]);
-    setMessage(`${result.added} student(s) added to class.`);
+    setMessage(`Đã thêm ${result.added} học sinh vào lớp.`);
+    return true;
   }
 
   return (
@@ -320,6 +334,26 @@ export default function Students({ role }) {
         onDelete={canManage && selected ? handleDelete : undefined}
       />
 
+      {pendingAction && (
+        <ConfirmActionModal
+          title={pendingAction.kind === "delete" ? "Xác nhận xóa hồ sơ học sinh" : "Xác nhận đổi trạng thái học sinh"}
+          description={pendingAction.kind === "delete"
+            ? "Chỉ có thể xóa vĩnh viễn hồ sơ chưa từng tham gia lớp hoặc có kết quả học tập."
+            : pendingAction.nextStatus === "Active"
+              ? "Kích hoạt lại hồ sơ không tự động khôi phục các lớp đã rời. Bạn cần thêm lại học sinh vào từng lớp."
+              : `Thao tác này sẽ vô hiệu hóa ${pendingAction.activeClasses} quan hệ lớp đang học, nếu có. Khi kích hoạt lại, các quan hệ này không tự khôi phục.`}
+          detail={pendingAction.kind === "delete"
+            ? pendingAction.studentName
+            : `${pendingAction.studentName} → ${pendingAction.nextStatus}`}
+          confirmLabel={pendingAction.kind === "delete" ? "Xóa hồ sơ" : "Đổi trạng thái"}
+          destructive={pendingAction.kind === "delete" || pendingAction.nextStatus !== "Active"}
+          busy={actionBusy}
+          error={actionError}
+          onClose={() => { setPendingAction(null); setActionError(""); }}
+          onConfirm={applyPendingAction}
+        />
+      )}
+
       {editing !== undefined && (
         <StudentFormModal
           student={editing}
@@ -340,6 +374,7 @@ export default function Students({ role }) {
           classes={classes}
           classStudents={classStudents}
           getEligibility={getStudentClassEligibility}
+          loadCandidates={getClassStudentCandidates}
           onClose={() => setAssigning(false)}
           onAssign={assignSelected}
         />

@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import Button from "../../components/ui/Button";
 import RangeStaffingPanel from "./RangeStaffingPanel";
+import { CompactDayAgenda } from "./CompactDayAgenda";
+import AssignmentConfirmDialog from "./AssignmentConfirmDialog";
+import { buildDayAgenda } from "./dayAgenda";
 import { schedulingApi } from "../../services/api";
 import { classApi } from "../../services/classApi";
 import { addDays, iso, mondayOf } from "./schedulingUtils";
@@ -63,6 +66,8 @@ export default function TeacherAssignmentView() {
     campus: "Cơ sở chính",
   });
   const [message, setMessage] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const weekDays = useMemo(() => buildWeekDays(weekStart), [weekStart]);
 
@@ -352,8 +357,20 @@ export default function TeacherAssignmentView() {
     }
   }
 
-  async function cancelTeacherAssignment(schedule) {
-    if (!window.confirm("Hủy phân công giáo viên riêng buổi này? Lịch sử vẫn được giữ lại.")) return;
+  function cancelTeacherAssignment(schedule) {
+    setConfirmAction({ kind: "cancel", schedule });
+  }
+
+  function replaceTeacher(schedule) {
+    if (!selectedTeacherId || selectedTeacherId === schedule.teacherId) return;
+    setConfirmAction({
+      kind: "replace", schedule,
+      targetId: selectedTeacherId,
+      targetName: selectedTeacher?.fullName || selectedTeacherId,
+    });
+  }
+
+  async function performCancelTeacherAssignment(schedule) {
     try {
       await schedulingApi.cancelTeacher(schedule.id);
       setMessage({ type: "success", text: "Đã hủy phân công buổi này. Lịch học vẫn được giữ lại." });
@@ -363,22 +380,36 @@ export default function TeacherAssignmentView() {
     }
   }
 
-  async function replaceTeacher(schedule) {
-    if (!selectedTeacherId || selectedTeacherId === schedule.teacherId) return;
-    if (!window.confirm("Đổi giáo viên cho buổi này sang giáo viên đang chọn?")) return;
+  async function performReplaceTeacher(schedule, targetId) {
     try {
       const sessions = await classApi.plannedSessions(schedule.classId);
       const lesson = (sessions || []).find((slot) =>
         slot.status === "PLANNED" && planKey(slot) === planKey(schedule));
       if (!lesson) throw new Error("Không tìm thấy buổi học đang hoạt động để thay giáo viên.");
       await classApi.assignStaffingRange(schedule.classId, {
-        role: "TEACHER", employeeId: selectedTeacherId,
+        role: "TEACHER", employeeId: targetId,
         campus: form.campus, mode: "REPLACE", sessionIds: [lesson.id],
       });
       setMessage({ type: "success", text: "Đã tạo phân công giáo viên thay thế cho riêng buổi này và giữ lịch sử cũ." });
       await loadData();
     } catch (error) {
       setMessage({ type: "error", text: error.message || "Không thay được giáo viên." });
+    }
+  }
+
+  async function confirmAssignmentAction() {
+    if (!confirmAction || confirmBusy) return;
+    const pending = confirmAction;
+    setConfirmBusy(true);
+    try {
+      if (pending.kind === "cancel") {
+        await performCancelTeacherAssignment(pending.schedule);
+      } else {
+        await performReplaceTeacher(pending.schedule, pending.targetId);
+      }
+      setConfirmAction(null);
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
@@ -480,11 +511,11 @@ export default function TeacherAssignmentView() {
         </div>
       )}
 
-      <div className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
+      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_350px]">
+        <section className="min-w-0 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="scrollbar-hidden max-h-[min(72vh,760px)] overflow-auto overscroll-contain">
             <div className="min-w-[980px]">
-              <div className="grid grid-cols-[190px_repeat(7,minmax(112px,1fr))] border-b border-slate-200 bg-slate-50">
+              <div className="sticky top-0 z-10 grid grid-cols-[190px_repeat(7,minmax(112px,1fr))] border-b border-slate-200 bg-slate-50">
                 <div className="px-3 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   Giáo viên
                 </div>
@@ -499,7 +530,7 @@ export default function TeacherAssignmentView() {
               {visibleTeachers.map((teacher) => (
                 <div
                   key={teacher.id}
-                  className="grid min-h-32 grid-cols-[190px_repeat(7,minmax(112px,1fr))] border-b border-slate-200 last:border-b-0"
+                  className="grid h-[164px] grid-cols-[190px_repeat(7,minmax(112px,1fr))] border-b border-slate-200 last:border-b-0"
                 >
                   <button
                     type="button"
@@ -529,7 +560,8 @@ export default function TeacherAssignmentView() {
                   {weekDays.map((day) => {
                     const availabilities = teacherAvailability.filter(
                       (item) =>
-                        item.teacherId === teacher.id && item.day === day.key,
+                        item.teacherId === teacher.id && item.day === day.key &&
+                        (!item.availableDate || item.availableDate === day.date),
                     );
                     const schedules = teachingSchedules.filter(
                       (schedule) =>
@@ -538,77 +570,24 @@ export default function TeacherAssignmentView() {
                         schedule.status === "ASSIGNED",
                     );
 
+                    const items = buildDayAgenda(
+                      availabilities,
+                      schedules,
+                      (schedule) => classes.find((item) => item.id === schedule.classId)?.classCode || "Lớp học",
+                    );
                     return (
-                      <div key={day.key} className="space-y-1.5 border-l border-slate-200 p-2">
-                        {availabilities.map((availability) => (
-                          <button
-                            key={availability.id}
-                            type="button"
-                            onClick={() =>
-                              selectAvailability(teacher.id, availability)
-                            }
-                            className={
-                              "w-full rounded-md border px-2 py-1.5 text-left transition " +
-                              (availability.status === "APPROVED"
-                                ? "border-emerald-200 bg-emerald-50 hover:bg-emerald-100"
-                                : "border-amber-200 bg-amber-50 hover:bg-amber-100")
-                            }
-                          >
-                            <span className="block text-[11px] font-semibold text-slate-700">
-                              {availability.startTime}–{availability.endTime}
-                            </span>
-                            <span className="block text-[10px] text-slate-500">
-                              {availability.status === "APPROVED"
-                                ? "Rảnh"
-                                : "Chờ duyệt"}
-                            </span>
-                          </button>
-                        ))}
-                        {availabilities.filter((item) => item.status === "PENDING").map((item) => (
-                          <div key={`review-${item.id}`} className="flex gap-1 text-[10px]">
-                            <button type="button" className="text-emerald-700 underline"
-                              onClick={() => reviewSlot(item,"APPROVED")}>Duyệt</button>
-                            <button type="button" className="text-red-700 underline"
-                              onClick={() => reviewSlot(item,"REJECTED")}>Từ chối</button>
-                          </div>
-                        ))}
-
-                        {schedules.map((schedule) => {
-                          const classItem = classes.find(
-                            (item) => item.id === schedule.classId,
-                          );
-                          return (
-                            <div
-                              key={schedule.id}
-                              className="rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5"
-                            >
-                              <span className="block text-[10px] font-semibold uppercase text-blue-700">
-                                Đã xếp lớp
-                              </span>
-                              <span className="block text-[11px] font-medium text-slate-700">
-                                {schedule.startTime}–{schedule.endTime}
-                              </span>
-                              <span className="block truncate text-[10px] text-slate-500">
-                                {classItem?.classCode}
-                              </span>
-                              <div className="mt-1 flex flex-wrap gap-2">
-                                <button type="button" className="text-[10px] underline text-blue-700"
-                                  onClick={() => replaceTeacher(schedule)}>
-                                  Đổi giáo viên
-                                </button>
-                                <button type="button" className="text-[10px] underline text-rose-700"
-                                  onClick={() => cancelTeacherAssignment(schedule)}>
-                                  Hủy phân công
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {!availabilities.length && !schedules.length && (
-                          <div className="pt-8 text-center text-slate-300">—</div>
-                        )}
-                      </div>
+                      <CompactDayAgenda
+                        key={day.date}
+                        items={items}
+                        name={teacher.fullName}
+                        date={day.date}
+                        onChooseAvailability={(item) => selectAvailability(teacher.id, item)}
+                        onReview={reviewSlot}
+                        onReplace={replaceTeacher}
+                        onCancel={cancelTeacherAssignment}
+                        replacementName={selectedTeacher?.fullName}
+                        replacementIsDifferent={Boolean(selectedTeacherId && selectedTeacherId !== teacher.id)}
+                      />
                     );
                   })}
                 </div>
@@ -628,7 +607,7 @@ export default function TeacherAssignmentView() {
           </div>
         </section>
 
-        <aside className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <aside className="scrollbar-hidden min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
           <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
             <UserCheck size={17} className="text-blue-600" />
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
@@ -789,6 +768,14 @@ export default function TeacherAssignmentView() {
           </div>
         </aside>
       </div>
+      <AssignmentConfirmDialog
+        action={confirmAction}
+        personName={teachers.find((person) => person.id === confirmAction?.schedule.teacherId)?.fullName}
+        classCode={classes.find((item) => item.id === confirmAction?.schedule.classId)?.classCode}
+        busy={confirmBusy}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={confirmAssignmentAction}
+      />
     </div>
   );
 }

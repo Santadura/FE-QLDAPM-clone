@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { classApi } from "../../services/classApi";
+import Modal from "../../components/ui/Modal";
 
 const field =
   "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800";
@@ -44,6 +45,7 @@ export default function PlannedClassSessions({
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [rescheduling, setRescheduling] = useState(null);
+  const [confirmingReschedule, setConfirmingReschedule] = useState(false);
   const [reason, setReason] = useState("");
   const [makeUp, setMakeUp] = useState(false);
   const [newDate, setNewDate] = useState("");
@@ -70,6 +72,7 @@ export default function PlannedClassSessions({
     setError("");
     setDirty(false);
     setRescheduling(null);
+    setConfirmingReschedule(false);
     setSingleDate(classItem.startDate);
     classApi.plannedSessions(classItem.id)
       .then((items) => {
@@ -205,6 +208,7 @@ export default function PlannedClassSessions({
   }
 
   function beginReschedule(item) {
+    setConfirmingReschedule(false);
     setRescheduling(item);
     setReason("");
     setMakeUp(false);
@@ -224,11 +228,11 @@ export default function PlannedClassSessions({
       setError("Ngày/giờ học bù không hợp lệ.");
       return;
     }
-    const ok = window.confirm(
-      "Buổi cũ và mọi phân công Teacher/CS của buổi đó sẽ được hủy. " +
-      "Nếu có buổi bù, TC/CM phải phân công lại. Bạn xác nhận?"
-    );
-    if (!ok) return;
+    setConfirmingReschedule(true);
+  }
+
+  async function applyReschedule() {
+    if (!rescheduling || saving) return;
     setSaving(true);
     setError("");
     try {
@@ -241,9 +245,11 @@ export default function PlannedClassSessions({
       });
       setSessions((next || []).map(normalized));
       setRescheduling(null);
+      setConfirmingReschedule(false);
       await onChanged?.();
       setMessage("Đã ghi nhận thay đổi lịch và hủy phân công cũ. TC/CM cần kiểm tra lại ca chưa được phân công.");
     } catch(e) {
+      setConfirmingReschedule(false);
       setError(e?.message || "Không thể điều chỉnh buổi học.");
     } finally {
       setSaving(false);
@@ -364,6 +370,45 @@ export default function PlannedClassSessions({
           </div>
         </div>
       ) : null}
+
+      {confirmingReschedule && rescheduling && (
+        <Modal title="Xác nhận nghỉ / dời buổi học" onClose={() => {
+          if (!saving) setConfirmingReschedule(false);
+        }}>
+          <div className="space-y-4 text-sm">
+            <p className="text-slate-700">
+              Buổi học cũ và các phân công Teacher/CS của buổi đó sẽ bị hủy.
+              {makeUp ? " Buổi học bù cần được TC/CM phân công nhân sự lại." : ""}
+            </p>
+            <dl className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <div>
+                <dt className="text-slate-500">Buổi hiện tại</dt>
+                <dd className="font-medium text-slate-900">{rescheduling.date} · {rescheduling.startTime}–{rescheduling.endTime}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Lý do</dt>
+                <dd className="break-words font-medium text-slate-900">{reason.trim()}</dd>
+              </div>
+              <div>
+                <dt className="text-slate-500">Lịch bù</dt>
+                <dd className="font-medium text-slate-900">
+                  {makeUp ? `${newDate} · ${newFrom}–${newTo}` : "Không tạo buổi bù"}
+                </dd>
+              </div>
+            </dl>
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+              <button type="button" disabled={saving} onClick={() => setConfirmingReschedule(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50">
+                Quay lại
+              </button>
+              <button type="button" disabled={saving} onClick={applyReschedule}
+                className="rounded-lg bg-rose-700 px-4 py-2 font-semibold text-white hover:bg-rose-800 disabled:opacity-50">
+                {saving ? "Đang xử lý..." : "Xác nhận điều chỉnh"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }
