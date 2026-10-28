@@ -100,6 +100,15 @@ test('create class, approve availability, staff the course and mark a past teach
   expect(managerDetail.csAccessLevel).toBe('MANAGER');
   await call('cs003', 'PATCH', '/classes/' + classId + '/status', { status: 'RUNNING' });
 
+  // An active RUNNING class may not lose the last CS for a planned lesson.
+  const deniedCsCancellation = await request.delete(apiBase + '/staff-schedules/' + csResult.createdIds[0], {
+    headers: headers('cm001'),
+  });
+  expect(deniedCsCancellation.status(), 'CM cannot remove sole lesson support').toBe(409);
+  const afterDeniedCancellation = await call('cm001', 'GET', '/staff-schedules', undefined, 'Verify CS assignments');
+  expect(afterDeniedCancellation.some((row) => row.id === csResult.createdIds[0] &&
+    row.status === 'ASSIGNED')).toBe(true);
+
   const attendanceUrl = '/classes/' + classId + '/teacher-attendance';
   const rows = await call('cs003', 'GET', attendanceUrl);
   expect(rows).toHaveLength(2);
