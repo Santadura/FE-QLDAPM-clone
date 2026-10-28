@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StudentsView from "../features/students/StudentsView";
 import StudentFormModal from "../features/students/StudentFormModal";
 import ConfirmActionModal from "../components/ui/ConfirmActionModal";
@@ -87,6 +87,11 @@ export default function Students({ role }) {
   }, [students, search, status, classFilter, classStudents]);
 
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  useEffect(() => {
+    const lastPage = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > lastPage) setPage(lastPage);
+  }, [page, filtered.length]);
   const selected =
     students.find((student) => student.id === selectedId) ?? null;
 
