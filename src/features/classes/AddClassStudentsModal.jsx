@@ -17,6 +17,7 @@ export default function AddClassStudentsModal({
   const [serverCandidates, setServerCandidates] = useState(null);
   const [loading, setLoading] = useState(Boolean(loadCandidates));
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,10 +108,18 @@ export default function AddClassStudentsModal({
     );
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
-    if (!selectedIds.length) return;
-    onAdd(selectedIds);
+    if (!selectedIds.length || loading || saving || error) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onAdd(selectedIds);
+    } catch (err) {
+      setError(err?.message || "Không thể thêm học sinh vào lớp.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function StudentRow({ item, disabled = false }) {
@@ -177,7 +186,7 @@ export default function AddClassStudentsModal({
   return (
     <Modal
       title={`Add students · ${classItem.classCode}`}
-      onClose={onClose}
+      onClose={() => { if (!saving) onClose(); }}
       maxWidth="max-w-2xl"
     >
       <form onSubmit={submit} className="grid gap-4">
@@ -249,15 +258,15 @@ export default function AddClassStudentsModal({
             {selectedIds.length} selected
           </span>
           <div className="flex gap-2">
-            <Button type="button" onClick={onClose}>
+            <Button type="button" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button
               type="submit"
               variant="primary"
-              disabled={!selectedIds.length || loading}
+              disabled={!selectedIds.length || loading || saving || Boolean(error)}
             >
-              Add Students
+              {saving ? "Đang thêm..." : "Add Students"}
             </Button>
           </div>
         </div>
