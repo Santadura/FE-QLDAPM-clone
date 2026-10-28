@@ -105,7 +105,7 @@ test('create class, approve availability, staff the course and mark a past teach
     headers: headers('cm001'),
   });
   expect(deniedCsCancellation.status(), 'CM cannot remove sole lesson support').toBe(409);
-  const afterDeniedCancellation = await call('cm001', 'GET', '/staff-schedules', undefined, 'Verify CS assignments');
+  const afterDeniedCancellation = await call('cm001', 'GET', '/staff-schedules?weekStart=' + past, undefined, 'Verify CS assignments');
   expect(afterDeniedCancellation.some((row) => row.id === csResult.createdIds[0] &&
     row.status === 'ASSIGNED')).toBe(true);
 
