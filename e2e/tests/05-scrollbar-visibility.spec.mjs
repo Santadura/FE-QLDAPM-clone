@@ -13,6 +13,12 @@ test('class and student screens retain scrolling with hidden native scrollbars',
     const result = await page.locator(selector).first().evaluate((element) => {
       const styles = getComputedStyle(element);
       const webkitStyle = getComputedStyle(element, '::-webkit-scrollbar');
+      // Temporarily constrain the element to exercise native scrolling,
+      // even if the page normally scrolls at the document level.
+      const previousStyle = element.getAttribute('style');
+      element.style.height = '240px';
+      element.style.maxHeight = '240px';
+      element.style.overflow = 'auto';
       const placeholder = document.createElement('div');
       placeholder.style.height = '1800px';
       placeholder.style.minHeight = '1800px';
@@ -23,6 +29,8 @@ test('class and student screens retain scrolling with hidden native scrollbars',
       const scrolled = element.scrollTop > 0;
       element.scrollTop = 0;
       placeholder.remove();
+      if (previousStyle === null) element.removeAttribute('style');
+      else element.setAttribute('style', previousStyle);
       return {
         scrollbarWidth: styles.scrollbarWidth,
         webkitScrollbarDisplay: webkitStyle.display,
