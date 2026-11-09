@@ -1,87 +1,143 @@
-const STATUS_STYLE = {
-  'Đủ công': 'text-emerald-700 bg-emerald-50',
-  'Thiếu công': 'text-red-700 bg-red-50',
-  'Đi muộn': 'text-amber-700 bg-amber-50',
-  'Nghỉ phép': 'text-slate-500 bg-slate-100',
+const ROLE_LABELS = {
+  TEACHER: 'Giáo viên',
+  SALE: 'Sale',
+  CS: 'CS',
 }
 
-function Badge({ value }) {
+function EmptyRow({ columns, children }) {
   return (
-    <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${STATUS_STYLE[value] || 'bg-slate-100 text-slate-600'}`}>
-      {value}
-    </span>
+    <tr>
+      <td colSpan={columns} className="px-5 py-10 text-center text-sm text-slate-400">
+        {children}
+      </td>
+    </tr>
   )
 }
 
-// Dung cho GV / Sale / CS: chi xem cong cua chinh minh, theo tung ngay
-export function MyAttendanceTable({ records }) {
+export function TeamAttendanceTable({ records, personLabel, onReview }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200">
-      <div className="px-5 py-4 border-b border-slate-100">
-        <h3 className="text-sm font-semibold text-slate-800">Công của tôi</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Lịch sử chấm công gần đây</p>
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h3 className="text-sm font-semibold text-slate-800">Tổng hợp công theo nhân viên</h3>
+        <p className="mt-0.5 text-xs text-slate-400">
+          Số liệu được tổng hợp từ các lịch đã phân công trong tháng.
+        </p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] font-semibold text-slate-400 border-b border-slate-100">
-              <th className="px-5 py-2.5">NGÀY</th>
-              <th className="px-5 py-2.5">GIỜ VÀO</th>
-              <th className="px-5 py-2.5">GIỜ RA</th>
-              <th className="px-5 py-2.5">SỐ GIỜ</th>
-              <th className="px-5 py-2.5">TRẠNG THÁI</th>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-100 text-left text-[11px] font-semibold text-slate-400">
+            <th className="px-5 py-2.5">{personLabel.toUpperCase()}</th>
+            <th className="px-5 py-2.5">VAI TRÒ</th>
+            <th className="px-5 py-2.5">NGÀY CÔNG</th>
+            <th className="px-5 py-2.5">GIỜ THEO LỊCH</th>
+            <th className="px-5 py-2.5">BUỔI DẠY</th>
+            <th className="px-5 py-2.5">CA / BUỔI ĐƯỢC GIAO</th>
+            {onReview && <th className="px-5 py-2.5 text-right">THAO TÁC</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.id} className="border-b border-slate-50 last:border-0">
+              <td className="px-5 py-3">
+                <div className="font-medium text-slate-800">{record.name}</div>
+                {record.code && <div className="text-xs text-slate-400">{record.code}</div>}
+              </td>
+              <td className="px-5 py-3 text-slate-600">{ROLE_LABELS[record.role] || record.role}</td>
+              <td className="px-5 py-3 text-slate-700">{record.daysWorked}</td>
+              <td className="px-5 py-3 text-slate-700">{record.totalHours.toFixed(1)} giờ</td>
+              <td className="px-5 py-3 text-slate-700">{record.teachingSessions}</td>
+              <td className="px-5 py-3 text-slate-700">{record.assignedSessions}</td>
+              {onReview && <td className="px-5 py-3 text-right"><button type="button" onClick={() => onReview(record)} className="rounded-md border border-blue-200 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50">Review lương</button></td>}
             </tr>
-          </thead>
-          <tbody>
-            {records.map((r, i) => (
-              <tr key={i} className="border-b border-slate-50 last:border-0">
-                <td className="px-5 py-3 text-slate-700 whitespace-nowrap">{r.date}</td>
-                <td className="px-5 py-3 text-slate-700">{r.checkIn}</td>
-                <td className="px-5 py-3 text-slate-700">{r.checkOut}</td>
-                <td className="px-5 py-3 text-slate-700">{r.hours.toFixed(1)} hrs</td>
-                <td className="px-5 py-3"><Badge value={r.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+          {records.length === 0 && <EmptyRow columns={onReview ? 7 : 6}>Không có nhân viên phù hợp.</EmptyRow>}
+        </tbody>
+      </table>
     </div>
   )
 }
 
-// Dung cho TC / CM: xem cong cua ca team dang quan ly, tong hop theo thang
-export function TeamAttendanceTable({ records, personLabel }) {
+export function TeamScheduleTable({ records }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200">
-      <div className="px-5 py-4 border-b border-slate-100">
-        <h3 className="text-sm font-semibold text-slate-800">Công của {personLabel}</h3>
-        <p className="text-xs text-slate-400 mt-0.5">Tổng hợp ngày công tháng 10/2024</p>
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h3 className="text-sm font-semibold text-slate-800">Chi tiết lịch được phân công</h3>
+        <p className="mt-0.5 text-xs text-slate-400">
+          Thời lượng được tính từ giờ bắt đầu và kết thúc trên lịch.
+        </p>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-[11px] font-semibold text-slate-400 border-b border-slate-100">
-              <th className="px-5 py-2.5">{personLabel.toUpperCase()}</th>
-              <th className="px-5 py-2.5">NGÀY CÔNG</th>
-              <th className="px-5 py-2.5">GIỜ CÔNG</th>
-              <th className="px-5 py-2.5">TRẠNG THÁI</th>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-100 text-left text-[11px] font-semibold text-slate-400">
+            <th className="px-5 py-2.5">NHÂN VIÊN</th>
+            <th className="px-5 py-2.5">NGÀY</th>
+            <th className="px-5 py-2.5">CÔNG VIỆC / LỚP</th>
+            <th className="px-5 py-2.5">THỜI GIAN</th>
+            <th className="px-5 py-2.5">SỐ GIỜ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.id} className="border-b border-slate-50 last:border-0">
+              <td className="px-5 py-3">
+                <div className="font-medium text-slate-800">{record.name}</div>
+                {record.code && <div className="text-xs text-slate-400">{record.code}</div>}
+              </td>
+              <td className="whitespace-nowrap px-5 py-3 text-slate-700">{record.date}</td>
+              <td className="px-5 py-3 text-slate-700">{record.workName}</td>
+              <td className="whitespace-nowrap px-5 py-3 text-slate-700">
+                {record.startTime} – {record.endTime}
+              </td>
+              <td className="whitespace-nowrap px-5 py-3 text-slate-700">{record.hours.toFixed(1)} giờ</td>
             </tr>
-          </thead>
-          <tbody>
-            {records.map((r, i) => (
-              <tr key={i} className="border-b border-slate-50 last:border-0">
-                <td className="px-5 py-3">
-                  <div className="font-medium text-slate-800">{r.name}</div>
-                  <div className="text-xs text-slate-400">{r.code}</div>
-                </td>
-                <td className="px-5 py-3 text-slate-700">{r.daysWorked} ngày</td>
-                <td className="px-5 py-3 text-slate-700">{r.totalHours.toFixed(1)} hrs</td>
-                <td className="px-5 py-3"><Badge value={r.status} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          ))}
+          {records.length === 0 && (
+            <EmptyRow columns={5}>Không có lịch được phân công trong tháng này.</EmptyRow>
+          )}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+export function MyAttendanceTable({ records, roleKey }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 px-5 py-4">
+        <h3 className="text-sm font-semibold text-slate-800">Lịch công việc được phân công</h3>
+        <p className="mt-0.5 text-xs text-slate-400">
+          {roleKey === 'TEACHER' ? 'Mỗi dòng là một buổi dạy.' : 'Mỗi dòng là một ca làm việc.'}
+        </p>
       </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-100 text-left text-[11px] font-semibold text-slate-400">
+            <th className="px-5 py-2.5">NGÀY</th>
+            <th className="px-5 py-2.5">CÔNG VIỆC / LỚP</th>
+            <th className="px-5 py-2.5">THỜI GIAN</th>
+            <th className="px-5 py-2.5">SỐ GIỜ</th>
+            {roleKey === 'TEACHER' && <th className="px-5 py-2.5">SỐ BUỔI DẠY</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.id} className="border-b border-slate-50 last:border-0">
+              <td className="whitespace-nowrap px-5 py-3 text-slate-700">{record.date}</td>
+              <td className="px-5 py-3 text-slate-700">{record.workName}</td>
+              <td className="whitespace-nowrap px-5 py-3 text-slate-700">
+                {record.startTime} – {record.endTime}
+              </td>
+              <td className="whitespace-nowrap px-5 py-3 text-slate-700">{record.hours.toFixed(1)} giờ</td>
+              {roleKey === 'TEACHER' && <td className="px-5 py-3 text-slate-700">1</td>}
+            </tr>
+          ))}
+          {records.length === 0 && (
+            <EmptyRow columns={roleKey === 'TEACHER' ? 5 : 4}>
+              Không có lịch được phân công trong tháng này.
+            </EmptyRow>
+          )}
+        </tbody>
+      </table>
     </div>
   )
 }
