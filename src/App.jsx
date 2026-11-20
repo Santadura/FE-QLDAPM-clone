@@ -27,6 +27,14 @@ import AccountDataProvider from "./features/accounts/AccountDataProvider";
 import { useAccountData } from "./features/accounts/hooks/useAccountData";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import { ROLES } from "./config/roles";
+import UserLayout from "./components/user/UserLayout";
+import UserRoute from "./features/user/UserRoute";
+import CourseCatalog from "./pages/user/CourseCatalog";
+import UserLandingPage from "./pages/user/UserLandingPage";
+import UserLoginPage from "./pages/user/UserLoginPage";
+import UserRegisterPage from "./pages/user/UserRegisterPage";
+import UserCheckout from "./pages/user/UserCheckout";
+import UserProfile from "./pages/user/UserProfile";
 
 
 /* =========================================================
@@ -147,7 +155,7 @@ function AppRoutes() {
   ======================================================= */
 
   const home =
-    roleKey && role
+    roleKey === 'USER' ? '/user/profile' : roleKey && role
       ? `/${roleKey.toLowerCase()}`
       : "/login";
 
@@ -200,6 +208,16 @@ function AppRoutes() {
       ================================================= */}
 
       <Routes>
+        <Route path="/user/login" element={<UserLoginPage />} />
+        <Route path="/user/register" element={<UserRegisterPage />} />
+        <Route element={<UserLayout />}>
+          <Route path="/" element={<UserLandingPage />} />
+          <Route path="/courses" element={<CourseCatalog />} />
+          <Route path="/courses/:courseId" element={<Navigate to="/courses" replace />} />
+          <Route path="/checkout/:courseId" element={<UserRoute><UserCheckout /></UserRoute>} />
+          <Route path="/user/profile" element={<UserRoute><UserProfile /></UserRoute>} />
+          <Route path="/user" element={<Navigate to="/user/profile" replace />} />
+        </Route>
 
         {/* ===============================================
             LOGIN
@@ -238,15 +256,6 @@ function AppRoutes() {
             ROOT
         =============================================== */}
 
-        <Route
-          path="/"
-          element={
-            <Navigate
-              to={home}
-              replace
-            />
-          }
-        />
 
 
         {/* ===============================================

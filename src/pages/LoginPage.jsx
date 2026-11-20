@@ -1,5 +1,6 @@
 import React from 'react';
 import { LoginForm } from '../components/auth/LoginForm';
+import { Link } from 'react-router-dom';
 
 const LoginPage = () => {
   return (
@@ -20,7 +21,7 @@ const LoginPage = () => {
 
       {/* Main Content */}
       <main className="grow flex items-center justify-center p-4">
-        <LoginForm />
+        <div><LoginForm /><p className="mt-5 text-center text-sm text-slate-500">Bạn là học viên? <Link to="/courses" className="font-medium text-[#173557] underline">Khám phá khóa học</Link></p></div>
       </main>
 
       {/* Footer */}

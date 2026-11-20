@@ -139,7 +139,7 @@ export async function apiRequest(
   // Spring Security can return 403 when a missing/expired JWT reaches a
   // protected endpoint. Detect stale local sessions before making the request.
   if (
-    path !== '/auth/login' &&
+    !['/auth/login', '/auth/register'].includes(path) &&
     !token &&
     (sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY))
   ) {
@@ -233,7 +233,7 @@ export async function apiRequest(
   if (!response.ok) {
     if (
       response.status === 401 &&
-      path !== '/auth/login'
+      !['/auth/login', '/auth/register'].includes(path)
     ) {
       // A failed request from a previous login must not clear a newer session.
       const currentToken = getAccessToken()

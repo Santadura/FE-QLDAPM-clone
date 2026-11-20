@@ -72,7 +72,7 @@ export function useAuthForm(mode = 'login') {
         return;
       }
       toast.success(`Xin chào ${result.user}!`);
-      navigate(`/${result.roleKey.toLowerCase()}`, { replace: true });
+      navigate(result.roleKey === 'USER' ? '/user/profile' : `/${result.roleKey.toLowerCase()}`, { replace: true });
     } catch {
       toast.error('Không thể đăng nhập. Vui lòng thử lại.');
     } finally {

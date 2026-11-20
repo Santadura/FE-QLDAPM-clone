@@ -10,3 +10,11 @@ export function loginRequest(username, password) {
 export function logoutRequest() {
   return apiRequest('/auth/logout', { method: 'POST' });
 }
+
+export function registerRequest(body) {
+  return apiRequest('/auth/register', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function currentAccountRequest() {
+  return apiRequest('/auth/me');
+}

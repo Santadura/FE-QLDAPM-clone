@@ -5,9 +5,10 @@ import { getInitials } from './accountStore';
 import { mapAccountResponse } from './accountMapper';
 import { getSession, login as backendLogin, saveSession } from '../../services/api';
 import { profileApi } from '../../services/profileApi';
-import { logoutRequest } from '../../services/authApi';
+import { currentAccountRequest, logoutRequest, registerRequest } from '../../services/authApi';
 
 const ROLE_LABELS = Object.fromEntries(Object.entries(ACCOUNT_ROLE_MAP).map(([label, key]) => [key, label]));
+ROLE_LABELS.USER = 'Học viên';
 const USERNAME_ALIASES = { teacher: 'teacher001', tc: 'tc001', cm: 'cm001', cs: 'cs001' };
 
 export default function AccountDataProvider({ children }) {
@@ -19,12 +20,14 @@ export default function AccountDataProvider({ children }) {
   const logoutPending = useRef(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const token = session?.token;
+  const sessionRole = session?.role;
 
   useEffect(() => {
     if (!token) return;
     let active = true;
     const generation = ++profileGeneration.current;
-    profileApi.mine()
+    const request = sessionRole === 'USER' ? currentAccountRequest : profileApi.mine;
+    request()
       .then((data) => {
         if (active && generation === profileGeneration.current && getSession()?.token === token) {
           setProfileState({ token, account: mapAccountResponse(data), error: '' });
@@ -36,7 +39,7 @@ export default function AccountDataProvider({ children }) {
         }
       });
     return () => { active = false; };
-  }, [token, reloadCount]);
+  }, [token, sessionRole, reloadCount]);
 
   useEffect(() => {
     const handleExpiredSession = () => setSession(null);
@@ -74,11 +77,14 @@ export default function AccountDataProvider({ children }) {
     setReloadCount((current) => current + 1);
   }, [token]);
 
-  async function login(identifier, password, remember) {
+  async function login(identifier, password, remember, userOnly = false) {
     try {
       const input = identifier.trim().toLowerCase();
-      const response = await backendLogin(USERNAME_ALIASES[input] ?? input, password);
+      const response = await backendLogin(userOnly ? input : USERNAME_ALIASES[input] ?? input, password);
       const role = response?.role?.toUpperCase();
+      if (userOnly && role !== 'USER') {
+        return { ok: false, reason: 'Đây là tài khoản nhân viên. Vui lòng dùng trang đăng nhập nhân viên.' };
+      }
       if (!response?.token || !response.username || !ROLE_LABELS[role]) {
         return { ok: false, reason: 'Backend không trả về phiên đăng nhập hợp lệ.' };
       }
@@ -91,6 +97,22 @@ export default function AccountDataProvider({ children }) {
       return { ok: true, user: response.username, roleKey: role };
     } catch (error) {
       return { ok: false, reason: error.message || 'Không thể đăng nhập vào backend.' };
+    }
+  }
+
+  async function registerUser(form) {
+    try {
+      const response = await registerRequest({ username: form.username.trim().toLowerCase(), email: form.email.trim(), password: form.password });
+      if (!response?.token || !response.username || response.role !== 'USER') {
+        return { ok: false, reason: 'Backend không trả về tài khoản học viên hợp lệ.' };
+      }
+      const nextSession = { token: response.token, tokenType: response.tokenType || 'Bearer', username: response.username, role: response.role };
+      saveSession(nextSession, Boolean(form.remember));
+      setProfileState(null);
+      setSession(nextSession);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: error.message || 'Không thể đăng ký tài khoản.' };
     }
   }
 
@@ -181,7 +203,7 @@ export default function AccountDataProvider({ children }) {
   }
 
   return (
-    <AccountDataContext.Provider value={{ authUser, profileLoading, profileError, reloadProfile, loggingOut, login, logout, updateProfile, changePassword }}>
+    <AccountDataContext.Provider value={{ authUser, profileLoading, profileError, reloadProfile, loggingOut, login, registerUser, logout, updateProfile, changePassword }}>
       {children}
     </AccountDataContext.Provider>
   );

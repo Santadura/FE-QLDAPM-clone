@@ -32,7 +32,7 @@ export default function ProtectedRoute({
   ) {
     return (
       <Navigate
-        to={`/${userRole.toLowerCase()}`}
+        to={userRole === 'USER' ? '/user/profile' : `/${userRole.toLowerCase()}`}
         replace
       />
     );
